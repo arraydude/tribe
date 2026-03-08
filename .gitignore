@@ -1,0 +1,12 @@
+# OS
+.DS_Store
+
+# Dependencies
+node_modules/
+
+# Files >100MB (GitHub limit)
+m2_cs/M2_CS_PHOTOREEL_PREEDITED.MP4
+m2_cs/DJI_20260130_181532_301_video.MP4
+m2 g87  - lerda/IMG_9120.MOV
+m5_g90_luis/m5_g90_reel.mp4
+m5_g90_luis/IMG_1257.MOV

@@ -1,0 +1,26 @@
+import { serve } from '@hono/node-server'
+import { Hono } from 'hono'
+import { cors } from 'hono/cors'
+import orders from './routes/orders.js'
+import dashboard from './routes/dashboard.js'
+import quotation from './routes/quotation.js'
+import { queries } from './db.js'
+
+const app = new Hono()
+
+app.use('/*', cors())
+
+app.route('/api/orders', orders)
+app.route('/api/dashboard', dashboard)
+app.route('/api/quotation', quotation)
+
+// Clients endpoint
+app.get('/api/clients', (c) => {
+  const clients = queries.getAllClients.all()
+  return c.json(clients)
+})
+
+const port = 3456
+console.log(`Tribe API running on http://localhost:${port}`)
+
+serve({ fetch: app.fetch, port })

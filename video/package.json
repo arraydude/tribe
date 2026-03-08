@@ -1,0 +1,25 @@
+{
+  "name": "tribe-video",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "render": "remotion render src/index.ts",
+    "render:m2cs": "remotion render src/index.ts M2CsReel ../m2_cs/m2_cs_reel_v2.mp4 --codec=h264 --crf=17",
+    "render:m2cs-photoreel": "remotion render src/index.ts M2CsPhotoReelV2 ../m2_cs/m2_cs_photo_reel.mp4 --codec=h264 --crf=17 --public-dir=public",
+    "render:raptor-photoreel": "remotion render src/index.ts RangerRaptorPhotoReel ../ranger_raptor/ranger_raptor_photo_reel.mp4 --codec=h264 --crf=17 --public-dir=public",
+    "render:m5g90-reel": "remotion render src/index.ts M5G90Reel ../m5_g90_luis/m5_g90_reel.mp4 --codec=h264 --crf=17 --public-dir=public"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.242",
+    "@remotion/transitions": "4.0.242",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "remotion": "4.0.242",
+    "sharp": "^0.34.5"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "typescript": "^5.7.0"
+  }
+}
