@@ -16,7 +16,7 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "remotion": "4.0.242",
-    "sharp": "^0.34.5"
+    "sharp": "^0.35.0-rc.0"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",
