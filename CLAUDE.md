@@ -69,9 +69,12 @@ This repo stores media assets: product photography, build documentation (photos 
 | `incoming/` | Staging area | Temporary intake for media arriving before project assignment |
 | `m2 g87 - lerda/` | iPhone photos/videos (.JPG, .MOV, .HEIC) | G87 M2 build documentation |
 | `m2_cs/` | DJI drone photos/videos (.JPG, .MP4) | F87 M2 → CS conversion drone shoot (Abel's build) |
+| `m5_g90_luis/` | Mixed drone/phone media + planning docs | BMW M5 G90 Akrapovic content project for Luis |
 | `ops/spreadsheets/` | Operational spreadsheets | Seguimiento compras Tribe.xlsx |
 | `ranger_raptor/` | iPhone photos/videos (.JPG, .HEIC, .MOV, .PNG) | Ford Ranger Raptor build documentation |
+| `tribe-orders.skill` | Skill package artifact | Existing Tribe-related skill artifact at repo root |
 | `volvo billet/` | iPhone photos/videos (.JPG, .MP4) | Volvo billet parts project |
+| `demo/` | Internal app prototype | Tribe order management POC |
 | `video/` | Remotion project (TypeScript/React) | Video reels for Instagram — compositions, components, data |
 
 ### Infinity Subfolder Convention
