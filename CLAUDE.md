@@ -62,19 +62,19 @@ This repo stores media assets: product photography, build documentation (photos 
 
 | Directory | Contents | Description |
 |---|---|---|
+| `apps/order-management/` | Internal app prototype | Tribe order management POC (Vite + React + SQLite) |
 | `assets/infinity/` | Product photography (.jpg + .webp pairs) | Infinity Design intake systems, organized by BMW chassis code |
 | `assets/logo/` | Brand logos and watermarks | Logo assets for branding and video overlays |
 | `assets/music/` | Audio files (.mp3) | Reusable music for content production |
 | `docs/` | Planning and spec documents | PHOTO_SPEC, TRIBE_AGENTS_PLAN, TRIBE_REPO_STRUCTURE_PLAN |
 | `incoming/` | Staging area | Temporary intake for media arriving before project assignment |
-| `m2 g87 - lerda/` | iPhone photos/videos (.JPG, .MOV, .HEIC) | G87 M2 build documentation |
 | `m2_cs/` | DJI drone photos/videos (.JPG, .MP4) | F87 M2 → CS conversion drone shoot (Abel's build) |
 | `m5_g90_luis/` | Mixed drone/phone media + planning docs | BMW M5 G90 Akrapovic content project for Luis |
 | `ops/spreadsheets/` | Operational spreadsheets | Seguimiento compras Tribe.xlsx |
+| `ops/tribe-orders.skill` | Skill package artifact | Tribe-related skill artifact |
+| `projects/g87-lerda/` | iPhone photos/videos (.JPG, .MOV, .HEIC) | G87 M2 build documentation |
+| `projects/volvo-billet/` | iPhone photos/videos (.JPG, .MP4) | Volvo billet parts project |
 | `ranger_raptor/` | iPhone photos/videos (.JPG, .HEIC, .MOV, .PNG) | Ford Ranger Raptor build documentation |
-| `tribe-orders.skill` | Skill package artifact | Existing Tribe-related skill artifact at repo root |
-| `volvo billet/` | iPhone photos/videos (.JPG, .MP4) | Volvo billet parts project |
-| `demo/` | Internal app prototype | Tribe order management POC |
 | `video/` | Remotion project (TypeScript/React) | Video reels for Instagram — compositions, components, data |
 
 ### Infinity Subfolder Convention
@@ -198,4 +198,4 @@ Accepts optional props with backward-compatible defaults:
 - Use lowercase with hyphens for folder names
 - Product photography organized by brand goes under `assets/` (e.g., `assets/infinity/`)
 - Within product folders, organize by chassis code: `<chassis>-<model>` (e.g., `g8x-m2-m3-m4`)
-- Build documentation goes in its own top-level folder: `<model> <chassis> - <owner or project name>` (e.g., `m2 g87 - lerda`)
+- Build/project documentation goes under `projects/` with kebab-case naming: `projects/<chassis>-<owner>` (e.g., `projects/g87-lerda`)

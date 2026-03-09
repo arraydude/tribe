@@ -18,6 +18,6 @@ incoming/
 *.heic
 
 # Build artifacts
-demo/dist/
-demo/tribe.db
+apps/order-management/dist/
+apps/order-management/tribe.db
 video/out/
