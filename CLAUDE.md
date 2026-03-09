@@ -68,13 +68,13 @@ This repo stores media assets: product photography, build documentation (photos 
 | `assets/music/` | Audio files (.mp3) | Reusable music for content production |
 | `docs/` | Planning and spec documents | PHOTO_SPEC, TRIBE_AGENTS_PLAN, TRIBE_REPO_STRUCTURE_PLAN |
 | `incoming/` | Staging area | Temporary intake for media arriving before project assignment |
-| `m2_cs/` | DJI drone photos/videos (.JPG, .MP4) | F87 M2 → CS conversion drone shoot (Abel's build) |
-| `m5_g90_luis/` | Mixed drone/phone media + planning docs | BMW M5 G90 Akrapovic content project for Luis |
 | `ops/spreadsheets/` | Operational spreadsheets | Seguimiento compras Tribe.xlsx |
 | `ops/tribe-orders.skill` | Skill package artifact | Tribe-related skill artifact |
 | `projects/g87-lerda/` | iPhone photos/videos (.JPG, .MOV, .HEIC) | G87 M2 build documentation |
+| `projects/m2-cs-abel/` | DJI drone photos/videos (.JPG, .MP4) | F87 M2 → CS conversion drone shoot (Abel's build) |
+| `projects/m5-g90-luis/` | Mixed drone/phone media + planning docs | BMW M5 G90 Akrapovic content project for Luis |
+| `projects/ranger-raptor/` | iPhone photos/videos (.JPG, .HEIC, .MOV, .PNG) | Ford Ranger Raptor build documentation |
 | `projects/volvo-billet/` | iPhone photos/videos (.JPG, .MP4) | Volvo billet parts project |
-| `ranger_raptor/` | iPhone photos/videos (.JPG, .HEIC, .MOV, .PNG) | Ford Ranger Raptor build documentation |
 | `video/` | Remotion project (TypeScript/React) | Video reels for Instagram — compositions, components, data |
 
 ### Infinity Subfolder Convention
@@ -91,7 +91,7 @@ Product photos in `assets/infinity/` are organized by BMW chassis code and model
 - `g9x-m5` — G9X M5
 - `m3-e92` — E92 M3
 
-### M2 CS Build Spec (Abel) — `m2_cs/`
+### M2 CS Build Spec (Abel) — `projects/m2-cs-abel/`
 
 F87 M2 (N55) converted to CS specification. Full parts list:
 
@@ -126,7 +126,7 @@ F87 M2 (N55) converted to CS specification. Full parts list:
 
 **Sourced from:** IND Distribution, ECS Tuning, AutoTecknic, AeroLuxe, Pure Turbos, Dorch Engineering, VRSF, GetBMWParts, BimmerWorld, Macht Schnell, eBay, Amazon.
 
-### Ranger Raptor Build — `ranger_raptor/`
+### Ranger Raptor Build — `projects/ranger-raptor/`
 
 Ford Ranger Raptor with performance and aesthetic modifications.
 
@@ -149,7 +149,7 @@ Remotion project for creating Instagram reels. Located at `video/`.
 - `src/Root.tsx` — Composition registry (all reels registered here)
 - `src/components/` — Shared components: `PhotoSlide.tsx` (Ken Burns), `BuildSpec.tsx` (animated parts list), `Branding.tsx` (logo end card)
 - `src/data/` — Per-project data files (photos array, build spec items)
-- `public/` — Symlinks to asset directories (`logo/` → `assets/logo/`, `music/` → `assets/music/`, `m2_cs/`, `ranger_raptor/`)
+- `public/` — Symlinks to asset directories (`logo/` → `assets/logo/`, `music/` → `assets/music/`, `m2_cs/` → `projects/m2-cs-abel/`, `m5_g90_luis/` → `projects/m5-g90-luis/`, `ranger_raptor/` → `projects/ranger-raptor/`)
 - `brand-photos.mjs` — Sharp-based image processor: color grading + white logo watermark with drop shadow
 
 ### Composition Pattern (Photo Reel)

@@ -130,7 +130,7 @@ ig-ready/
   "logo": true,
   "jpegQuality": 92,
   "webpQuality": 85,
-  "inputDir": "m2_cs",
+  "inputDir": "projects/m2-cs-abel",
   "filesProcessed": 42,
   "filesOk": 42,
   "filesFailed": 0,
@@ -151,16 +151,16 @@ ig-ready/
 node video/ig-process.mjs assets/infinity/g8x-m2-m3-m4 --type product
 
 # Process build documentation
-node video/ig-process.mjs m2_cs --type build
+node video/ig-process.mjs projects/m2-cs-abel --type build
 
 # Process with custom ratio and a note
-node video/ig-process.mjs m2_cs --type build --ratio 4:5 --note "testing 4:5 for carousel"
+node video/ig-process.mjs projects/m2-cs-abel --type build --ratio 4:5 --note "testing 4:5 for carousel"
 
 # Process without logo
 node video/ig-process.mjs assets/infinity/f87-m2 --type product --no-logo
 
 # Re-run with settings from a previous run
-node video/ig-process.mjs m2_cs --rerun 001
+node video/ig-process.mjs projects/m2-cs-abel --rerun 001
 
 # Process a single file
 node video/ig-process.mjs "m2 g87 - lerda/IMG_1234.HEIC" --type build
