@@ -311,10 +311,16 @@ async function collectFiles(inputPath) {
     .map((f) => path.join(inputPath, f));
 }
 
-// ── Mirrored output path relative to repo root ────────────────────
-function mirroredSubdir(inputPath) {
-  const rel = path.relative(REPO_ROOT, inputPath);
-  // For a single file, use the parent dir
+// ── Safe output subdirectory relative to repo root ─────────────────
+// When input is inside the repo, mirror the source tree structure.
+// When input is external, use only the leaf directory name so the
+// output stays inside the run directory.
+function safeRelDir(absPath) {
+  const rel = path.relative(REPO_ROOT, absPath);
+  if (rel.startsWith("..") || path.isAbsolute(rel)) {
+    // External path — use the leaf directory name only
+    return path.basename(absPath);
+  }
   return rel;
 }
 
@@ -404,7 +410,11 @@ Options:
   }
 
   console.log(`\nTribe IG Process`);
-  console.log(`  Input:  ${path.relative(REPO_ROOT, inputPath)}`);
+  const inputRel = path.relative(REPO_ROOT, inputPath);
+  const inputDisplay = inputRel.startsWith("..") || path.isAbsolute(inputRel)
+    ? inputPath
+    : inputRel;
+  console.log(`  Input:  ${inputDisplay}`);
   console.log(`  Type:   ${type}`);
   console.log(`  Ratio:  ${ratio} (${dims.w}x${dims.h})`);
   console.log(`  Logo:   ${useLogo ? "yes" : "no"}`);
@@ -417,11 +427,11 @@ Options:
   const runId = padRun(runNum);
   const runDir = path.join(IG_READY_DIR, "runs", runId);
 
-  // Determine output subdirectory (mirror source path)
+  // Determine output subdirectory (mirror source path if internal,
+  // use leaf dir name if external so output stays inside runDir)
   const inputStat = await stat(inputPath);
-  const sourceRelDir = inputStat.isFile()
-    ? path.relative(REPO_ROOT, path.dirname(inputPath))
-    : path.relative(REPO_ROOT, inputPath);
+  const sourceDir = inputStat.isFile() ? path.dirname(inputPath) : inputPath;
+  const sourceRelDir = safeRelDir(sourceDir);
   const outputDir = path.join(runDir, sourceRelDir);
   await mkdir(outputDir, { recursive: true });
 
@@ -463,9 +473,7 @@ Options:
     logo: useLogo,
     jpegQuality: JPEG_QUALITY,
     webpQuality: WEBP_QUALITY,
-    inputDir: inputStat.isFile()
-      ? path.relative(REPO_ROOT, inputPath)
-      : path.relative(REPO_ROOT, inputPath),
+    inputPath: inputDisplay,
     filesProcessed: files.length,
     filesOk,
     filesFailed,
