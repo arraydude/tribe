@@ -8,7 +8,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // ── Paths ──────────────────────────────────────────────────────────
 const INPUT_DIR = path.resolve(__dirname, "../m2_cs");
 const OUTPUT_DIR = path.resolve(__dirname, "../m2_cs/branded_pics");
-const LOGO_PATH = path.resolve(__dirname, "../logo/youtube300.png");
+const LOGO_PATH = path.resolve(__dirname, "../assets/logo/youtube300.png");
 
 // ── Color grade ────────────────────────────────────────────────────
 const GRADE = {

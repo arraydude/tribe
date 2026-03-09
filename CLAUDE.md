@@ -62,16 +62,21 @@ This repo stores media assets: product photography, build documentation (photos 
 
 | Directory | Contents | Description |
 |---|---|---|
-| `infinity/` | Product photography (.jpg + .webp pairs) | Infinity Design intake systems, organized by BMW chassis code |
+| `assets/infinity/` | Product photography (.jpg + .webp pairs) | Infinity Design intake systems, organized by BMW chassis code |
+| `assets/logo/` | Brand logos and watermarks | Logo assets for branding and video overlays |
+| `assets/music/` | Audio files (.mp3) | Reusable music for content production |
+| `docs/` | Planning and spec documents | PHOTO_SPEC, TRIBE_AGENTS_PLAN, TRIBE_REPO_STRUCTURE_PLAN |
+| `incoming/` | Staging area | Temporary intake for media arriving before project assignment |
 | `m2 g87 - lerda/` | iPhone photos/videos (.JPG, .MOV, .HEIC) | G87 M2 build documentation |
 | `m2_cs/` | DJI drone photos/videos (.JPG, .MP4) | F87 M2 → CS conversion drone shoot (Abel's build) |
+| `ops/spreadsheets/` | Operational spreadsheets | Seguimiento compras Tribe.xlsx |
 | `ranger_raptor/` | iPhone photos/videos (.JPG, .HEIC, .MOV, .PNG) | Ford Ranger Raptor build documentation |
 | `volvo billet/` | iPhone photos/videos (.JPG, .MP4) | Volvo billet parts project |
 | `video/` | Remotion project (TypeScript/React) | Video reels for Instagram — compositions, components, data |
 
 ### Infinity Subfolder Convention
 
-Product photos in `infinity/` are organized by BMW chassis code and model:
+Product photos in `assets/infinity/` are organized by BMW chassis code and model:
 
 - `e60-m5-one-piece`, `e60-m5-twin` — E60 M5 intakes
 - `f10-m5` — F10 M5
@@ -141,7 +146,7 @@ Remotion project for creating Instagram reels. Located at `video/`.
 - `src/Root.tsx` — Composition registry (all reels registered here)
 - `src/components/` — Shared components: `PhotoSlide.tsx` (Ken Burns), `BuildSpec.tsx` (animated parts list), `Branding.tsx` (logo end card)
 - `src/data/` — Per-project data files (photos array, build spec items)
-- `public/` — Symlinks to asset directories (`logo/`, `m2_cs/`, `ranger_raptor/`)
+- `public/` — Symlinks to asset directories (`logo/` → `assets/logo/`, `music/` → `assets/music/`, `m2_cs/`, `ranger_raptor/`)
 - `brand-photos.mjs` — Sharp-based image processor: color grading + white logo watermark with drop shadow
 
 ### Composition Pattern (Photo Reel)
@@ -150,7 +155,7 @@ Each photo reel follows this structure:
 1. `TransitionSeries` of `PhotoSlide` components (75 frames each, 15-frame crossfades)
 2. Crossfade into `BuildSpec` (150 frames) with title/subtitle/items props
 3. `FadeOverlay` (black fade in/out)
-4. Logo watermark overlay (`logo/watermark.png` — pre-processed white silhouette with drop shadow)
+4. Logo watermark overlay (`assets/logo/watermark.png` — pre-processed white silhouette with drop shadow)
 5. `Branding` end card (last 75 frames — logo + @tribeshipping)
 
 Dimensions: 1080×1920 vertical, 30fps, H.264 codec, CRF 17.
@@ -163,7 +168,7 @@ Dimensions: 1080×1920 vertical, 30fps, H.264 codec, CRF 17.
 4. Create `src/<ProjectName>PhotoReel.tsx` following existing composition pattern
 5. Register in `src/Root.tsx` with computed frame duration
 6. Add symlink in `public/` and render script in `package.json`
-7. Generate `logo/watermark.png` if not already present (run the sharp script)
+7. Generate `assets/logo/watermark.png` if not already present (run the sharp script)
 
 ### BuildSpec Component
 
@@ -188,6 +193,6 @@ Accepts optional props with backward-compatible defaults:
 ## Conventions for New Content
 
 - Use lowercase with hyphens for folder names
-- Product photography organized by brand goes in its own top-level folder (e.g., `infinity/`)
+- Product photography organized by brand goes under `assets/` (e.g., `assets/infinity/`)
 - Within product folders, organize by chassis code: `<chassis>-<model>` (e.g., `g8x-m2-m3-m4`)
 - Build documentation goes in its own top-level folder: `<model> <chassis> - <owner or project name>` (e.g., `m2 g87 - lerda`)

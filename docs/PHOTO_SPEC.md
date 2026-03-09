@@ -77,7 +77,7 @@ For: iPhone/drone shots of cars during and after builds, rolling shots, detail s
 
 | Parameter | Value |
 |---|---|
-| Source | `logo/youtube300.png` |
+| Source | `assets/logo/youtube300.png` |
 | Width | 12% of output width (~130px at 1080w) |
 | Position | Bottom-center |
 | Edge padding | 3.5% from bottom edge |
@@ -148,7 +148,7 @@ ig-ready/
 
 ```bash
 # Process a folder of product photos
-node video/ig-process.mjs infinity/g8x-m2-m3-m4 --type product
+node video/ig-process.mjs assets/infinity/g8x-m2-m3-m4 --type product
 
 # Process build documentation
 node video/ig-process.mjs m2_cs --type build
@@ -157,7 +157,7 @@ node video/ig-process.mjs m2_cs --type build
 node video/ig-process.mjs m2_cs --type build --ratio 4:5 --note "testing 4:5 for carousel"
 
 # Process without logo
-node video/ig-process.mjs infinity/f87-m2 --type product --no-logo
+node video/ig-process.mjs assets/infinity/f87-m2 --type product --no-logo
 
 # Re-run with settings from a previous run
 node video/ig-process.mjs m2_cs --rerun 001
