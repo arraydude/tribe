@@ -49,12 +49,12 @@ export function OrdersTable({ data, onEdit }: OrdersTableProps) {
       {/* Filters */}
       <div className="flex flex-wrap gap-2 items-center">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-white/20" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/50" />
           <input
             placeholder="Buscar cliente, item..."
             value={globalFilter}
             onChange={(e) => setGlobalFilter(e.target.value)}
-            className="h-8 w-64 rounded-md border border-white/8 bg-tribe-surface-2 pl-9 pr-3 text-sm text-white/70 placeholder:text-white/20 focus:outline-none focus:border-tribe-orange/40 focus:ring-1 focus:ring-tribe-orange/20 transition-all"
+            className="h-8 w-64 rounded-md border border-border bg-secondary pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/40 focus:ring-1 focus:ring-primary/20 transition-all"
           />
         </div>
 
@@ -82,12 +82,12 @@ export function OrdersTable({ data, onEdit }: OrdersTableProps) {
       </div>
 
       {/* Table */}
-      <div className="rounded-lg border border-white/5 overflow-hidden">
+      <div className="rounded-lg border border-border overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead>
               {table.getHeaderGroups().map((hg) => (
-                <tr key={hg.id} className="border-b border-white/5 bg-tribe-surface">
+                <tr key={hg.id} className="border-b border-border bg-card">
                   {hg.headers.map((h) => (
                     <th key={h.id} className="px-3 py-2.5 whitespace-nowrap">
                       {h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}
@@ -99,7 +99,7 @@ export function OrdersTable({ data, onEdit }: OrdersTableProps) {
             <tbody>
               {table.getRowModel().rows.length ? (
                 table.getRowModel().rows.map((row) => (
-                  <tr key={row.id} className="border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors">
+                  <tr key={row.id} className="border-b border-border hover:bg-muted/50 transition-colors">
                     {row.getVisibleCells().map((cell) => (
                       <td key={cell.id} className="px-3 py-2 whitespace-nowrap">
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -109,7 +109,7 @@ export function OrdersTable({ data, onEdit }: OrdersTableProps) {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={columns.length} className="h-24 text-center text-white/20 text-sm">
+                  <td colSpan={columns.length} className="h-24 text-center text-muted-foreground/50 text-sm">
                     Sin resultados.
                   </td>
                 </tr>
@@ -121,24 +121,24 @@ export function OrdersTable({ data, onEdit }: OrdersTableProps) {
 
       {/* Pagination */}
       <div className="flex items-center justify-between">
-        <span className="data-value text-[11px] text-white/25">
+        <span className="font-mono tabular-nums text-[11px] text-muted-foreground">
           {table.getFilteredRowModel().rows.length} pedidos
         </span>
         <div className="flex items-center gap-1">
           <button
             onClick={() => table.previousPage()}
             disabled={!table.getCanPreviousPage()}
-            className="h-7 w-7 rounded flex items-center justify-center border border-white/8 text-white/30 hover:text-white/60 hover:border-white/15 disabled:opacity-20 transition-all"
+            className="h-7 w-7 rounded flex items-center justify-center border border-border text-muted-foreground hover:text-foreground hover:border-border disabled:opacity-20 transition-all"
           >
             <ChevronLeft className="h-3.5 w-3.5" />
           </button>
-          <span className="data-value text-[11px] text-white/30 px-2">
+          <span className="font-mono tabular-nums text-[11px] text-muted-foreground px-2">
             {table.getState().pagination.pageIndex + 1} / {table.getPageCount()}
           </span>
           <button
             onClick={() => table.nextPage()}
             disabled={!table.getCanNextPage()}
-            className="h-7 w-7 rounded flex items-center justify-center border border-white/8 text-white/30 hover:text-white/60 hover:border-white/15 disabled:opacity-20 transition-all"
+            className="h-7 w-7 rounded flex items-center justify-center border border-border text-muted-foreground hover:text-foreground hover:border-border disabled:opacity-20 transition-all"
           >
             <ChevronRight className="h-3.5 w-3.5" />
           </button>
@@ -171,7 +171,7 @@ function FilterSelect({ value, onChange, options }: {
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="h-8 rounded-md border border-white/8 bg-tribe-surface-2 px-2 text-xs text-white/50 focus:outline-none focus:border-tribe-orange/40 transition-all appearance-none cursor-pointer"
+      className="h-8 rounded-md border border-border bg-secondary px-2 text-xs text-muted-foreground focus:outline-none focus:border-primary/40 transition-all appearance-none cursor-pointer"
     >
       {options.map((o) => (
         <option key={o.value} value={o.value}>{o.label}</option>

@@ -21,6 +21,15 @@ db.exec(`
     created_at  TEXT DEFAULT (datetime('now'))
   );
 
+  CREATE TABLE IF NOT EXISTS team_members (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    name       TEXT NOT NULL UNIQUE,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+
+  INSERT OR IGNORE INTO team_members (name) VALUES ('NAHUE');
+  INSERT OR IGNORE INTO team_members (name) VALUES ('FEDE');
+
   CREATE TABLE IF NOT EXISTS orders (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
     client_id           INTEGER NOT NULL REFERENCES clients(id),
@@ -50,6 +59,9 @@ db.exec(`
 
 // Prepared statements
 export const queries = {
+  // Team members
+  getAllTeamMembers: db.prepare('SELECT * FROM team_members ORDER BY name'),
+
   // Clients
   getClientByName: db.prepare('SELECT * FROM clients WHERE name = ?'),
   getClientById: db.prepare('SELECT * FROM clients WHERE id = ?'),

@@ -76,6 +76,11 @@ export interface Client {
   notes: string | null
 }
 
+export interface TeamMember {
+  id: number
+  name: string
+}
+
 // Orders
 export const api = {
   orders: {
@@ -107,5 +112,8 @@ export const api = {
   },
   clients: {
     list: () => request<Client[]>('/clients'),
+  },
+  teamMembers: {
+    list: () => request<TeamMember[]>('/team-members'),
   },
 }

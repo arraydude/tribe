@@ -20,6 +20,12 @@ app.get('/api/clients', (c) => {
   return c.json(clients)
 })
 
+// Team members endpoint
+app.get('/api/team-members', (c) => {
+  const members = queries.getAllTeamMembers.all()
+  return c.json(members)
+})
+
 const port = 3456
 console.log(`Tribe API running on http://localhost:${port}`)
 

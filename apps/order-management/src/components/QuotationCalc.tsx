@@ -31,36 +31,36 @@ export function QuotationCalc() {
 
   return (
     <div className="max-w-xl space-y-6">
-      <p className="text-sm text-white/40">
+      <p className="text-sm text-muted-foreground">
         Formula: COSTO = PRECIO_COMPRA * 1.04 + 45 * PESO_KG, PRECIO = COSTO * (1 + MARGEN)
       </p>
 
       {/* Inputs */}
       <div className="grid grid-cols-3 gap-4">
         <div>
-          <label className="block text-[10px] uppercase tracking-[0.2em] text-white/30 mb-1.5">Precio Compra (USD)</label>
+          <label className="block text-[10px] uppercase tracking-[0.2em] text-muted-foreground mb-1.5">Precio Compra (USD)</label>
           <input
             type="number"
             step="any"
             value={precioCompra}
             onChange={(e) => setPrecioCompra(e.target.value)}
             placeholder="0.00"
-            className="w-full h-10 rounded-md border border-white/8 bg-tribe-surface-2 px-3 text-sm text-white/70 placeholder:text-white/20 focus:outline-none focus:border-tribe-cyan/40 transition-all data-value"
+            className="w-full h-10 rounded-md border border-border bg-secondary px-3 text-sm text-foreground/70 placeholder:text-muted-foreground/30 focus:outline-none focus:border-ring/40 transition-all font-mono tabular-nums"
           />
         </div>
         <div>
-          <label className="block text-[10px] uppercase tracking-[0.2em] text-white/30 mb-1.5">Peso (kg)</label>
+          <label className="block text-[10px] uppercase tracking-[0.2em] text-muted-foreground mb-1.5">Peso (kg)</label>
           <input
             type="number"
             step="any"
             value={pesoKg}
             onChange={(e) => setPesoKg(e.target.value)}
             placeholder="0.0"
-            className="w-full h-10 rounded-md border border-white/8 bg-tribe-surface-2 px-3 text-sm text-white/70 placeholder:text-white/20 focus:outline-none focus:border-tribe-cyan/40 transition-all data-value"
+            className="w-full h-10 rounded-md border border-border bg-secondary px-3 text-sm text-foreground/70 placeholder:text-muted-foreground/30 focus:outline-none focus:border-ring/40 transition-all font-mono tabular-nums"
           />
         </div>
         <div>
-          <label className="block text-[10px] uppercase tracking-[0.2em] text-white/30 mb-1.5">Margen (%)</label>
+          <label className="block text-[10px] uppercase tracking-[0.2em] text-muted-foreground mb-1.5">Margen (%)</label>
           <div className="flex gap-1.5">
             {['20', '30'].map((m) => (
               <button
@@ -69,8 +69,8 @@ export function QuotationCalc() {
                 onClick={() => setMargen(m)}
                 className={`flex-1 h-10 rounded-md text-sm font-medium transition-all ${
                   margen === m
-                    ? 'border border-tribe-cyan/40 bg-tribe-cyan/10 text-tribe-cyan'
-                    : 'border border-white/8 bg-tribe-surface-2 text-white/30 hover:text-white/50'
+                    ? 'border border-ring/40 bg-ring/10 text-ring'
+                    : 'border border-border bg-secondary text-muted-foreground hover:text-foreground/50'
                 }`}
               >
                 {m}%
@@ -80,7 +80,7 @@ export function QuotationCalc() {
               type="number"
               value={margen}
               onChange={(e) => setMargen(e.target.value)}
-              className="w-16 h-10 rounded-md border border-white/8 bg-tribe-surface-2 px-2 text-sm text-white/70 text-center focus:outline-none focus:border-tribe-cyan/40 transition-all data-value"
+              className="w-16 h-10 rounded-md border border-border bg-secondary px-2 text-sm text-foreground/70 text-center focus:outline-none focus:border-ring/40 transition-all font-mono tabular-nums"
             />
           </div>
         </div>
@@ -88,10 +88,10 @@ export function QuotationCalc() {
 
       {/* Results */}
       {result && (
-        <div className="rounded-lg border border-white/5 bg-tribe-surface carbon-bg p-5 space-y-3 animate-fade-in">
+        <div className="rounded-lg border border-border bg-card p-5 space-y-3">
           <div className="flex items-center gap-2 mb-1">
-            <div className="w-1 h-4 bg-tribe-cyan rounded-full" />
-            <h3 className="text-xs uppercase tracking-[0.15em] text-white/50 font-medium">Resultado</h3>
+            <div className="w-1 h-4 bg-ring rounded-full" />
+            <h3 className="text-xs uppercase tracking-[0.15em] text-muted-foreground font-medium">Resultado</h3>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -99,20 +99,20 @@ export function QuotationCalc() {
             <ResultRow label="Envio ARG (45 * kg)" value={usd(result.envioArg)} />
           </div>
 
-          <div className="h-px bg-white/5" />
+          <div className="h-px bg-border" />
 
           <ResultRow label="Costo Total" value={usd(result.costo)} large />
 
-          <div className="h-px bg-white/5" />
+          <div className="h-px bg-border" />
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <p className="text-[10px] uppercase tracking-[0.2em] text-tribe-green/70 mb-1">Precio al Cliente</p>
-              <p className="data-value text-2xl font-bold text-tribe-green">{usd(result.precio)}</p>
+              <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground mb-1">Precio al Cliente</p>
+              <p className="font-mono tabular-nums text-2xl font-bold text-foreground">{usd(result.precio)}</p>
             </div>
             <div>
-              <p className="text-[10px] uppercase tracking-[0.2em] text-tribe-orange/70 mb-1">Ganancia</p>
-              <p className="data-value text-2xl font-bold text-tribe-orange">{usd(result.ganancia)}</p>
+              <p className="text-[10px] uppercase tracking-[0.2em] text-primary/70 mb-1">Ganancia</p>
+              <p className="font-mono tabular-nums text-2xl font-bold text-primary">{usd(result.ganancia)}</p>
             </div>
           </div>
         </div>
@@ -124,8 +124,8 @@ export function QuotationCalc() {
 function ResultRow({ label, value, large }: { label: string; value: string; large?: boolean }) {
   return (
     <div>
-      <p className="text-[10px] uppercase tracking-[0.2em] text-white/30 mb-0.5">{label}</p>
-      <p className={`data-value ${large ? 'text-lg' : 'text-sm'} text-white/70`}>{value}</p>
+      <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground mb-0.5">{label}</p>
+      <p className={`font-mono tabular-nums ${large ? 'text-lg' : 'text-sm'} text-foreground/70`}>{value}</p>
     </div>
   )
 }

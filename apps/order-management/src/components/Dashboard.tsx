@@ -1,16 +1,24 @@
 import {
   Bar, BarChart, XAxis, YAxis,
   Pie, PieChart, Cell, CartesianGrid,
-  ResponsiveContainer, Tooltip, Area, AreaChart,
+  Area, AreaChart,
 } from 'recharts'
 import type { DashboardStats } from '@/lib/api'
-
-const PIE_COLORS: Record<string, string> = {
-  'DONE': '#22c55e',
-  'IN PROGRESS': '#f97316',
-  'TO DO': '#f59e0b',
-  'RECEIVED BAIRES': '#06b6d4',
-}
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+  type ChartConfig,
+} from '@/components/ui/chart'
 
 function usd(val: number) {
   return `$${val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -25,20 +33,20 @@ interface DashboardProps {
   data: DashboardStats
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const CustomTooltip = ({ active, payload, label }: any) => {
-  if (!active || !payload?.length) return null
-  return (
-    <div className="bg-[#1a1a1a] border border-white/10 rounded px-3 py-2 shadow-xl">
-      <p className="text-[10px] text-white/50 uppercase tracking-wider mb-1">{label}</p>
-      {payload.map((p: { value: number; color: string }, i: number) => (
-        <p key={i} className="data-value text-sm" style={{ color: p.color }}>
-          {usd(p.value)}
-        </p>
-      ))}
-    </div>
-  )
-}
+const monthlyConfig = {
+  total: { label: 'Ganancia', color: 'var(--chart-1)' },
+} satisfies ChartConfig
+
+const statusConfig = {
+  DONE: { label: 'Done', color: 'var(--chart-1)' },
+  'IN PROGRESS': { label: 'In Progress', color: 'var(--chart-2)' },
+  'TO DO': { label: 'To Do', color: 'var(--chart-3)' },
+  'RECEIVED BAIRES': { label: 'Received', color: 'var(--chart-4)' },
+} satisfies ChartConfig
+
+const clientConfig = {
+  total: { label: 'Ganancia', color: 'var(--chart-2)' },
+} satisfies ChartConfig
 
 export function Dashboard({ data }: DashboardProps) {
   const { counts, profit, topClients, monthly, statusDistribution, bestOrder, worstOrder } = data
@@ -56,135 +64,123 @@ export function Dashboard({ data }: DashboardProps) {
   }))
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       {/* KPI Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KpiCard label="PEDIDOS TOTALES" value={counts.total_orders.toString()} delay={0} />
-        <KpiCard label="GANANCIA TOTAL" value={usd(profit.total_profit ?? 0)} color="text-tribe-green" delay={1} />
-        <KpiCard label="GANANCIA PROMEDIO" value={usd(profit.avg_profit ?? 0)} delay={2} />
-        <KpiCard label="EN CURSO" value={pending.toString()} color="text-tribe-orange" delay={3} />
+        <Card size="sm">
+          <CardHeader>
+            <CardDescription>Pedidos Totales</CardDescription>
+            <CardTitle className="font-mono tabular-nums text-xl">{counts.total_orders}</CardTitle>
+          </CardHeader>
+        </Card>
+        <Card size="sm">
+          <CardHeader>
+            <CardDescription>Ganancia Total</CardDescription>
+            <CardTitle className="font-mono tabular-nums text-xl">{usd(profit.total_profit ?? 0)}</CardTitle>
+          </CardHeader>
+        </Card>
+        <Card size="sm">
+          <CardHeader>
+            <CardDescription>Ganancia Promedio</CardDescription>
+            <CardTitle className="font-mono tabular-nums text-xl">{usd(profit.avg_profit ?? 0)}</CardTitle>
+          </CardHeader>
+        </Card>
+        <Card size="sm">
+          <CardHeader>
+            <CardDescription>En Curso</CardDescription>
+            <CardTitle className="font-mono tabular-nums text-xl text-primary">{pending}</CardTitle>
+          </CardHeader>
+        </Card>
       </div>
 
       {/* Best / Worst */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {bestOrder && (
-          <div className="relative overflow-hidden rounded-lg border border-tribe-green/20 bg-tribe-green-dim p-5 animate-slide-up" style={{ animationDelay: '0.2s' }}>
-            <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-tribe-green via-tribe-green/50 to-transparent" />
-            <p className="text-[10px] uppercase tracking-[0.2em] text-tribe-green/70 mb-2">Mayor Ganancia</p>
-            <p className="data-value text-2xl font-bold text-tribe-green">{usd(bestOrder.ganancia ?? 0)}</p>
-            <p className="text-sm text-white/50 mt-1">{bestOrder.item}</p>
-            <p className="text-xs text-white/30 mt-0.5">{bestOrder.cliente}</p>
-          </div>
+          <Card>
+            <CardHeader>
+              <CardDescription>Mayor Ganancia</CardDescription>
+              <CardTitle className="font-mono tabular-nums text-2xl">{usd(bestOrder.ganancia ?? 0)}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">{bestOrder.item}</p>
+              <p className="text-xs text-muted-foreground/60 mt-0.5">{bestOrder.cliente}</p>
+            </CardContent>
+          </Card>
         )}
         {worstOrder && (
-          <div className="relative overflow-hidden rounded-lg border border-tribe-red/20 bg-tribe-red-dim p-5 animate-slide-up" style={{ animationDelay: '0.25s' }}>
-            <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-tribe-red via-tribe-red/50 to-transparent" />
-            <p className="text-[10px] uppercase tracking-[0.2em] text-tribe-red/70 mb-2">Mayor Perdida</p>
-            <p className="data-value text-2xl font-bold text-tribe-red">{usd(worstOrder.ganancia ?? 0)}</p>
-            <p className="text-sm text-white/50 mt-1">{worstOrder.item}</p>
-            <p className="text-xs text-white/30 mt-0.5">{worstOrder.cliente}</p>
-          </div>
+          <Card>
+            <CardHeader>
+              <CardDescription>Mayor Perdida</CardDescription>
+              <CardTitle className="font-mono tabular-nums text-2xl text-destructive">{usd(worstOrder.ganancia ?? 0)}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">{worstOrder.item}</p>
+              <p className="text-xs text-muted-foreground/60 mt-0.5">{worstOrder.cliente}</p>
+            </CardContent>
+          </Card>
         )}
       </div>
 
       {/* Charts grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
         {/* Monthly */}
-        <div className="lg:col-span-2 rounded-lg border border-white/5 bg-tribe-surface carbon-bg p-5 animate-slide-up" style={{ animationDelay: '0.3s' }}>
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-1 h-4 bg-tribe-cyan rounded-full" />
-            <h3 className="text-xs uppercase tracking-[0.15em] text-white/50 font-medium">Ganancia Mensual</h3>
-          </div>
-          <div className="h-[260px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={monthlyChart}>
-                <defs>
-                  <linearGradient id="gradArea" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#06b6d4" stopOpacity={0.3} />
-                    <stop offset="100%" stopColor="#06b6d4" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid stroke="#ffffff06" strokeDasharray="none" vertical={false} />
-                <XAxis dataKey="month" tick={{ fontSize: 9, fill: '#525252', fontFamily: 'JetBrains Mono' }} axisLine={{ stroke: '#ffffff08' }} tickLine={false} interval={2} />
-                <YAxis tickFormatter={(v) => usdCompact(v)} tick={{ fontSize: 9, fill: '#525252', fontFamily: 'JetBrains Mono' }} axisLine={false} tickLine={false} width={50} />
-                <Tooltip content={<CustomTooltip />} />
-                <Area type="monotone" dataKey="total" stroke="#06b6d4" strokeWidth={1.5} fill="url(#gradArea)" dot={false} activeDot={{ r: 3, fill: '#06b6d4', stroke: '#0a0a0a', strokeWidth: 2 }} />
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle>Ganancia Mensual</CardTitle>
+            <CardDescription>Evolución de ganancia por mes</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer config={monthlyConfig} className="h-[260px] w-full">
+              <AreaChart data={monthlyChart} margin={{ left: 12, right: 12 }}>
+                <CartesianGrid vertical={false} />
+                <XAxis dataKey="month" tickLine={false} axisLine={false} tickMargin={8} interval={2} />
+                <YAxis tickFormatter={usdCompact} tickLine={false} axisLine={false} width={50} />
+                <ChartTooltip content={<ChartTooltipContent indicator="line" />} />
+                <Area dataKey="total" type="monotone" fill="var(--color-total)" fillOpacity={0.3} stroke="var(--color-total)" strokeWidth={1.5} />
               </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+            </ChartContainer>
+          </CardContent>
+        </Card>
 
         {/* Status */}
-        <div className="rounded-lg border border-white/5 bg-tribe-surface carbon-bg p-5 animate-slide-up" style={{ animationDelay: '0.35s' }}>
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-1 h-4 bg-tribe-amber rounded-full" />
-            <h3 className="text-xs uppercase tracking-[0.15em] text-white/50 font-medium">Estado</h3>
-          </div>
-          <div className="h-[180px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
+        <Card>
+          <CardHeader>
+            <CardTitle>Estado</CardTitle>
+            <CardDescription>Distribución por estado</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer config={statusConfig} className="h-[200px] w-full">
               <PieChart>
                 <Pie data={statusDistribution} dataKey="count" nameKey="status" cx="50%" cy="50%" innerRadius={45} outerRadius={75} strokeWidth={0} paddingAngle={2}>
                   {statusDistribution.map((entry, i) => (
-                    <Cell key={i} fill={PIE_COLORS[entry.status] ?? '#525252'} />
+                    <Cell key={i} fill={`var(--color-${entry.status})`} />
                   ))}
                 </Pie>
-                <Tooltip content={({ active, payload }) => {
-                  if (!active || !payload?.length) return null
-                  const d = payload[0]
-                  return (
-                    <div className="bg-[#1a1a1a] border border-white/10 rounded px-3 py-2 shadow-xl">
-                      <p className="text-xs text-white/70">{d.name}</p>
-                      <p className="data-value text-sm text-white font-semibold">{d.value}</p>
-                    </div>
-                  )
-                }} />
+                <ChartTooltip content={<ChartTooltipContent nameKey="status" />} />
+                <ChartLegend content={<ChartLegendContent nameKey="status" />} />
               </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
-            {statusDistribution.map((s) => (
-              <div key={s.status} className="flex items-center gap-1.5">
-                <div className="w-2 h-2 rounded-full" style={{ background: PIE_COLORS[s.status] ?? '#525252' }} />
-                <span className="text-[10px] text-white/40">{s.status}</span>
-                <span className="data-value text-[10px] text-white/60">{s.count}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+            </ChartContainer>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Top clients */}
-      <div className="rounded-lg border border-white/5 bg-tribe-surface carbon-bg p-5 animate-slide-up" style={{ animationDelay: '0.4s' }}>
-        <div className="flex items-center gap-2 mb-4">
-          <div className="w-1 h-4 bg-tribe-orange rounded-full" />
-          <h3 className="text-xs uppercase tracking-[0.15em] text-white/50 font-medium">Top 10 Clientes por Ganancia</h3>
-        </div>
-        <div className="h-[320px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
+      <Card>
+        <CardHeader>
+          <CardTitle>Top 10 Clientes por Ganancia</CardTitle>
+          <CardDescription>Clientes con mayor ganancia acumulada</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ChartContainer config={clientConfig} className="h-[320px] w-full">
             <BarChart data={clientChart} layout="vertical" margin={{ left: 0, right: 20 }}>
-              <XAxis type="number" tickFormatter={(v) => usdCompact(v)} tick={{ fontSize: 9, fill: '#525252', fontFamily: 'JetBrains Mono' }} axisLine={{ stroke: '#ffffff08' }} tickLine={false} />
-              <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 11, fill: '#737373', fontFamily: 'Outfit' }} axisLine={false} tickLine={false} />
-              <Tooltip content={<CustomTooltip />} />
-              <Bar dataKey="total" radius={[0, 3, 3, 0]} barSize={18}>
-                {clientChart.map((_, i) => (
-                  <Cell key={i} fill={i === 0 ? '#f97316' : i < 3 ? '#f9731680' : '#f9731640'} />
-                ))}
-              </Bar>
+              <XAxis type="number" tickFormatter={usdCompact} tickLine={false} axisLine={false} />
+              <YAxis type="category" dataKey="name" width={100} tickLine={false} axisLine={false} />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <Bar dataKey="total" fill="var(--color-total)" radius={[0, 3, 3, 0]} barSize={18} />
             </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function KpiCard({ label, value, color, delay }: {
-  label: string; value: string; color?: string; delay: number
-}) {
-  return (
-    <div className="relative overflow-hidden rounded-lg border border-white/5 bg-tribe-surface carbon-bg p-4 animate-slide-up" style={{ animationDelay: `${delay * 0.06}s` }}>
-      <p className="text-[10px] uppercase tracking-[0.2em] text-white/30 mb-2 font-medium">{label}</p>
-      <p className={`data-value text-xl font-bold ${color ?? 'text-white'}`}>{value}</p>
+          </ChartContainer>
+        </CardContent>
+      </Card>
     </div>
   )
 }
