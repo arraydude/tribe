@@ -29,37 +29,92 @@ stock.get('/:id', (c) => {
   return c.json(item)
 })
 
-// Create stock item (investment)
+// Create stock item + investment order (atomic)
 stock.post('/', async (c) => {
   const body = await c.req.json()
-  const { marca, item, variante, cantidad_invertida, cantidad_disponible, costo_por_unidad, precio_lista, precio_taller, precio_emi } = body
+  const { marca, item, variante, cantidad_invertida } = body
 
   if (!marca || !item) {
     return c.json({ error: 'marca and item are required' }, 400)
   }
 
-  const result = queries.insertStockItem.run({
-    marca: marca.trim(),
-    item: item.trim(),
-    variante: variante?.trim() || null,
-    cantidad_invertida: Number(cantidad_invertida) || 0,
-    cantidad_disponible: (body.status || 'EN TRANSITO') === 'EN TRANSITO' ? 0 : (Number(cantidad_disponible) || Number(cantidad_invertida) || 0),
-    costo_por_unidad: Number(costo_por_unidad) || 0,
-    precio_lista: precio_lista != null ? Number(precio_lista) : null,
-    precio_taller: precio_taller != null ? Number(precio_taller) : null,
-    precio_emi: precio_emi != null ? Number(precio_emi) : null,
-    status: body.status || 'EN TRANSITO',
-    tracking: body.tracking || null,
-    fecha_compra: body.fecha_compra || null,
-    fecha_llegada: body.fecha_llegada || null,
-    valor_compra_total: body.valor_compra_total != null ? Number(body.valor_compra_total) : null,
-    tax: body.tax != null ? Number(body.tax) : null,
-    costo_envio: body.costo_envio != null ? Number(body.costo_envio) : null,
-    investment_order_id: body.investment_order_id ?? null,
+  const valorCompra = Number(body.valor_compra_total) || 0
+  const tax = Math.round(valorCompra * 0.04 * 100) / 100
+  const valorDebitado = Math.round((valorCompra + tax) * 100) / 100
+  const itemName = [marca.trim(), item.trim(), variante?.trim()].filter(Boolean).join(' ')
+  const qty = Number(cantidad_invertida) || 1
+
+  const createTx = db.transaction(() => {
+    // Resolve or create "Tribe" client
+    let tribeClient = queries.getClientByName.get('Tribe') as { id: number } | undefined
+    if (!tribeClient) {
+      const ins = queries.insertClient.run('Tribe', 'internal')
+      tribeClient = { id: Number(ins.lastInsertRowid) }
+    }
+
+    // Create investment order
+    const orderResult = queries.insertOrder.run({
+      client_id: tribeClient.id,
+      item: itemName,
+      cantidad: qty,
+      link_compra: null,
+      valor_presupuestado: 0,
+      fecha_compra: new Date().toISOString().split('T')[0],
+      valor_compra: valorCompra,
+      valor_debitado: valorDebitado,
+      tax,
+      costo_envio: null,
+      peso: null,
+      status: 'TO DO',
+      is_stock: 0,
+      is_paid: 1,
+      asignado: null,
+      ganancia: null,
+      paid_to: null,
+      tracking: null,
+      observaciones: null,
+      stock_item_id: null,
+    })
+    const orderId = Number(orderResult.lastInsertRowid)
+
+    // Create stock item
+    const stockResult = queries.insertStockItem.run({
+      marca: marca.trim(),
+      item: item.trim(),
+      variante: variante?.trim() || null,
+      cantidad_invertida: qty,
+      cantidad_disponible: 0,
+      costo_por_unidad: 0,
+      precio_lista: null,
+      precio_taller: null,
+      precio_emi: null,
+      status: 'EN TRANSITO',
+      tracking: null,
+      fecha_compra: new Date().toISOString().split('T')[0],
+      fecha_llegada: null,
+      valor_compra_total: valorCompra,
+      tax,
+      costo_envio: null,
+      investment_order_id: orderId,
+    })
+    const stockId = Number(stockResult.lastInsertRowid)
+
+    // Link order → stock
+    queries.setOrderStockItemId.run({ id: orderId, stock_item_id: stockId })
+
+    return {
+      stock_item: queries.getStockItem.get(stockId),
+      order: queries.getOrder.get(orderId),
+    }
   })
 
-  const created = queries.getStockItem.get(result.lastInsertRowid)
-  return c.json(created, 201)
+  try {
+    const result = createTx()
+    return c.json(result, 201)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Creation failed'
+    return c.json({ error: msg }, 400)
+  }
 })
 
 // Update stock item

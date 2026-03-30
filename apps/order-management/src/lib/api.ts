@@ -173,7 +173,7 @@ export const api = {
     balance: () => request<StockBalance[]>('/stock/balance'),
     get: (id: number) => request<StockItem>(`/stock/${id}`),
     create: (data: Record<string, unknown>) =>
-      request<StockItem>('/stock', { method: 'POST', body: JSON.stringify(data) }),
+      request<{ stock_item: StockItem; order: OrderRow }>('/stock', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: number, data: Record<string, unknown>) =>
       request<StockItem>(`/stock/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     sell: (id: number, data: { qty: number; order_data: Record<string, unknown> }) =>

@@ -363,3 +363,107 @@ describe('Convert order to stock', () => {
     expect(perUnit).toBe(396.67)
   })
 })
+
+describe('Investment creation (order + stock atomic)', () => {
+  let db: ReturnType<typeof createTestDb>['db']
+  let queries: ReturnType<typeof createTestDb>['queries']
+
+  beforeEach(() => {
+    const testDb = createTestDb()
+    db = testDb.db
+    queries = testDb.queries
+  })
+
+  function createInvestment(marca: string, item: string, variante: string, qty: number, valorCompra: number) {
+    const tax = Math.round(valorCompra * 0.04 * 100) / 100
+    const valorDebitado = Math.round((valorCompra + tax) * 100) / 100
+    const itemName = [marca, item, variante].filter(Boolean).join(' ')
+    const fechaCompra = new Date().toISOString().split('T')[0]
+
+    return db.transaction(() => {
+      let tribeClient = queries.getClientByName.get('Tribe') as { id: number } | undefined
+      if (!tribeClient) {
+        const ins = queries.insertClient.run('Tribe', 'internal')
+        tribeClient = { id: Number(ins.lastInsertRowid) }
+      }
+
+      const orderResult = queries.insertOrder.run({
+        client_id: tribeClient.id, item: itemName, cantidad: qty,
+        link_compra: null, valor_presupuestado: 0, fecha_compra: fechaCompra,
+        valor_compra: valorCompra, valor_debitado: valorDebitado, tax,
+        costo_envio: null, peso: null, status: 'TO DO', is_stock: 0, is_paid: 1,
+        asignado: null, ganancia: null, paid_to: null, tracking: null,
+        observaciones: null, stock_item_id: null,
+      })
+      const orderId = Number(orderResult.lastInsertRowid)
+
+      const stockResult = queries.insertStockItem.run({
+        marca, item, variante: variante || null,
+        cantidad_invertida: qty, cantidad_disponible: 0, costo_por_unidad: 0,
+        precio_lista: null, precio_taller: null, precio_emi: null,
+        status: 'EN TRANSITO', tracking: null, fecha_compra: fechaCompra,
+        fecha_llegada: null, valor_compra_total: valorCompra, tax,
+        costo_envio: null, investment_order_id: orderId,
+      })
+      const stockId = Number(stockResult.lastInsertRowid)
+
+      queries.setOrderStockItemId.run({ id: orderId, stock_item_id: stockId })
+
+      return { orderId, stockId }
+    })()
+  }
+
+  it('creates order + stock item atomically', () => {
+    const { orderId, stockId } = createInvestment('CTS', 'DOWNPIPE', 'S58', 3, 2400)
+
+    const order = queries.getOrder.get(orderId) as Record<string, unknown>
+    expect(order).toBeDefined()
+    const stock = queries.getStockItem.get(stockId) as Record<string, unknown>
+    expect(stock).toBeDefined()
+  })
+
+  it('order has correct fields: Tribe client, presupuestado=0, CONCAT item, tax, debitado', () => {
+    const { orderId } = createInvestment('CTS', 'DOWNPIPE', 'S58', 3, 2400)
+
+    const order = queries.getOrder.get(orderId) as Record<string, unknown>
+    expect(order.cliente).toBe('Tribe')
+    expect(order.client_type).toBe('internal')
+    expect(order.valor_presupuestado).toBe(0)
+    expect(order.item).toBe('CTS DOWNPIPE S58')
+    expect(order.cantidad).toBe(3)
+    expect(order.valor_compra).toBe(2400)
+    expect(order.tax).toBe(96) // 2400 * 0.04
+    expect(order.valor_debitado).toBe(2496) // 2400 + 96
+    expect(order.is_stock).toBe(0)
+    expect(order.fecha_compra).toBeTruthy()
+  })
+
+  it('stock item is EN TRANSITO with cantidad_disponible=0', () => {
+    const { stockId } = createInvestment('NGK', 'Bujias', 'B58', 10, 982)
+
+    const stock = queries.getStockItem.get(stockId) as Record<string, unknown>
+    expect(stock.status).toBe('EN TRANSITO')
+    expect(stock.cantidad_disponible).toBe(0)
+    expect(stock.cantidad_invertida).toBe(10)
+    expect(stock.valor_compra_total).toBe(982)
+  })
+
+  it('bidirectional link: order.stock_item_id = stock.id and stock.investment_order_id = order.id', () => {
+    const { orderId, stockId } = createInvestment('Infinity', 'INTAKE', 'B58', 2, 2316)
+
+    const order = queries.getOrder.get(orderId) as Record<string, unknown>
+    expect(order.stock_item_id).toBe(stockId)
+
+    const stock = queries.getStockItem.get(stockId) as Record<string, unknown>
+    expect(stock.investment_order_id).toBe(orderId)
+  })
+
+  it('reuses existing Tribe client', () => {
+    createInvestment('A', 'B', 'C', 1, 100)
+    createInvestment('D', 'E', 'F', 1, 200)
+
+    const clients = queries.getAllClients.all() as Record<string, unknown>[]
+    const tribeClients = clients.filter((c) => c.name === 'Tribe')
+    expect(tribeClients).toHaveLength(1) // Only one Tribe client
+  })
+})

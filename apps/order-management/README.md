@@ -7,16 +7,17 @@ Internal app for managing Tribe Shipping's orders and inventory.
 ```bash
 npm run dev          # Vite (5173) + API server (3456)
 npm run seed         # Seed DB from JSON
-npm test             # Correr tests (30 tests)
+npm test             # Correr tests (37 tests)
 npm run test:watch   # Tests en modo watch
 ```
 
 ## Tests
 
-30 tests de integración que cubren los flujos financieros críticos. Usan SQLite in-memory (cada test tiene su propia BD aislada, sin state compartido).
+37 tests de integración que cubren los flujos financieros críticos. Usan SQLite in-memory (cada test tiene su propia BD aislada, sin state compartido).
 
 - **Stock sell (6)**: transacción atómica (decrementa stock + crea order), rollback en insuficiente, validación de status DISPONIBLE, prevención de oversell, linkeo de stock_item_id
-- **Stock balance (6)**: cálculo inversión vs recuperado, exclusión de soft-deleted, balance positivo/negativo, items independientes
+- **Stock balance (8)**: cálculo inversión vs recuperado, exclusión de soft-deleted y de investment orders, balance positivo/negativo, ganancia real (precio - costo), items independientes
+- **Investment creation (5)**: creación atómica pedido + stock, order=Tribe/presupuestado=0/CONCAT/tax/debitado, stock=EN TRANSITO/disponible=0, link bidireccional, reutilización cliente Tribe
 - **Convert to stock (3)**: conversión de pedido de inversión a stock item, link bidireccional, cálculo de costo por unidad
 - **Quotation (9)**: tax 4%, envío $45/kg, márgenes (20/30/50%), redondeo a 2 decimales
 - **Orders (6)**: CRUD, resolución de cliente, soft delete, linkeo stock_item_id
@@ -35,28 +36,28 @@ Tribe vende de su inventario pre-comprado. El costo de compra es 0 (ya se invirt
 
 El ciclo de vida completo de un item de stock tiene 3 fases:
 
-### Fase 1: Compra e importación (pedido de inversión)
+### Fase 1: Inversión (compra + stock atómico)
 
-Tribe compra partes a un proveedor para tener en stock. Esto se registra como un pedido de importación con **valor presupuestado = 0** (no hay cliente, es una inversión propia):
+Desde el dropdown **"+ Nuevo" → "Inversión de Stock"**. El usuario completa: Marca, Item, Variante, Cantidad, Valor de Compra Total.
 
-1. Se crea el pedido con los costos conocidos: **valor de compra** + **valor debitado** (1%) + **tax** (4%)
-2. Se trackea el estado de la importación cambiando el **Item Status** (TO DO → IN PROGRESS → RECEIVED BAIRES → DONE) y actualizando el **tracking**
-3. Una vez llega al país, se carga el **costo de envío** (costo de importación basado en peso)
-4. Este pedido aparece como **pérdida** en el seguimiento (se gastó plata sin vender nada todavía)
+Al crear se generan **dos registros atómicamente** en una transacción:
 
-### Fase 2: Conversión a stock
+1. **Pedido en Seguimiento**: a nombre de "Tribe" (internal), con item = "MARCA ITEM VARIANTE", fecha = hoy, valor_compra = input, tax = compra × 4%, valor_debitado = compra + tax, presupuestado = 0. Aparece como **pérdida** en el dashboard.
+2. **Stock item**: status EN TRANSITO, cantidad_disponible = 0, investment_order_id linkeado al pedido.
 
-Cuando el pedido de inversión llega (status RECEIVED BAIRES o DONE), aparece un botón **"→ Stock"** en la tabla de pedidos:
+Ambos registros quedan linkeados bidireccionalmente (order.stock_item_id ↔ stock.investment_order_id).
 
-1. Se clickea **"→ Stock"** en el pedido de inversión
-2. Se abre un dialog pre-llenado con los costos del pedido
-3. Se completa: **Marca** + **Item** + **Variante** + **Cantidad**
-4. El **costo por unidad** se auto-calcula: (valor_compra + tax + costo_envio) / cantidad
-5. Los **precios por tier** se auto-calculan: Lista (×1.4), Taller (×1.3), EMI (×1.2)
-6. Al confirmar, se crea el stock item y se linkea bidireccionalmente con el pedido (el pedido recibe `stock_item_id`, el stock item recibe `investment_order_id`)
-7. En la tabla de pedidos, el pedido convertido muestra un badge **"STOCK"**
+### Fase 2: Llegada y actualización de costos
 
-Un pedido solo se puede convertir una vez. Si ya fue convertido, no aparece el botón.
+Cuando el producto llega, se edita el stock item desde la vista Stock:
+
+1. Se actualiza el **status** (EN TRANSITO → DISPONIBLE)
+2. Se carga el **costo de envío** real
+3. El **costo por unidad** se auto-calcula: (valor_compra + tax + costo_envio) / cantidad
+4. Los **precios por tier** se auto-calculan: Lista (×1.4), Taller (×1.3), EMI (×1.2)
+5. La **cantidad disponible** se setea automáticamente = cantidad invertida
+
+El stock queda listo para vender.
 
 ### Fase 3: Ventas desde stock
 

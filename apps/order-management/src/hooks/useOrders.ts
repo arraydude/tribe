@@ -97,7 +97,11 @@ export function useCreateStockItem() {
   return useMutation({
     mutationFn: (data: Record<string, unknown>) => api.stock.create(data),
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: queryKeys.stock.all })
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: queryKeys.stock.all }),
+        qc.invalidateQueries({ queryKey: queryKeys.orders.all }),
+        qc.invalidateQueries({ queryKey: queryKeys.dashboard.all }),
+      ])
     },
   })
 }
