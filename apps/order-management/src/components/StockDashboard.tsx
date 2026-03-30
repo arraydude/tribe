@@ -243,6 +243,7 @@ export function StockDashboard() {
                   <tr className="border-b bg-muted/50">
                     <th className="px-3 py-2 text-left text-muted-foreground">Cliente</th>
                     <th className="px-3 py-2 text-left text-muted-foreground">Precio</th>
+                    <th className="px-3 py-2 text-left text-muted-foreground">Costo</th>
                     <th className="px-3 py-2 text-left text-muted-foreground">Ganancia</th>
                     <th className="px-3 py-2 text-left text-muted-foreground">Estado</th>
                     <th className="px-3 py-2 text-left text-muted-foreground">Saldado</th>
@@ -253,6 +254,7 @@ export function StockDashboard() {
                     <tr key={order.id} className="border-b">
                       <td className="px-3 py-2 font-medium">{order.cliente}</td>
                       <td className="px-3 py-2 font-mono tabular-nums">{usd(order.valor_presupuestado)}</td>
+                      <td className="px-3 py-2 font-mono tabular-nums text-muted-foreground">{usd(order.valor_compra)}</td>
                       <td className="px-3 py-2 font-mono tabular-nums font-semibold">{usd(order.ganancia)}</td>
                       <td className="px-3 py-2"><Badge variant={order.status === 'DONE' ? 'default' : 'secondary'}>{order.status}</Badge></td>
                       <td className="px-3 py-2">{order.is_paid ? <Badge variant="default">SI</Badge> : <span className="text-muted-foreground/40">NO</span>}</td>
