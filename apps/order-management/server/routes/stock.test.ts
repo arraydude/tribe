@@ -203,6 +203,56 @@ describe('Stock balance calculation', () => {
     expect(balance[0].balance).toBe(-500)
   })
 
+  it('excludes investment orders (is_stock=0) from balance count', () => {
+    const clientId = seedClient(queries)
+    const stockId = seedStockItem(queries, { cantidad_invertida: 5, costo_por_unidad: 100 })
+
+    // Investment order (is_stock=0, but has stock_item_id from conversion)
+    queries.insertOrder.run({
+      client_id: clientId, item: 'Investment', cantidad: 5,
+      link_compra: null, valor_presupuestado: 0, fecha_compra: null,
+      valor_compra: 500, valor_debitado: 500, tax: 0, costo_envio: 0,
+      peso: null, status: 'DONE', is_stock: 0, is_paid: 1,
+      asignado: null, ganancia: null, paid_to: null, tracking: null,
+      observaciones: null, stock_item_id: stockId,
+    })
+
+    // Actual sale (is_stock=1)
+    queries.insertOrder.run({
+      client_id: clientId, item: 'Sale', cantidad: 1,
+      link_compra: null, valor_presupuestado: 150, fecha_compra: null,
+      valor_compra: 100, valor_debitado: 100, tax: 0, costo_envio: 0,
+      peso: null, status: 'DONE', is_stock: 1, is_paid: 1,
+      asignado: null, ganancia: 50, paid_to: null, tracking: null,
+      observaciones: null, stock_item_id: stockId,
+    })
+
+    const balance = queries.stockBalance.all() as Record<string, unknown>[]
+    expect(balance[0].ventas_count).toBe(1) // Only the sale, not the investment
+    expect(balance[0].total_recuperado).toBe(50) // Only sale's ganancia
+  })
+
+  it('calculates real ganancia (sale price - cost per unit)', () => {
+    // Stock item costs $400/unit
+    const clientId = seedClient(queries)
+    const stockId = seedStockItem(queries, { cantidad_invertida: 5, costo_por_unidad: 400 })
+
+    // Sale at $680, real ganancia = 680 - 400 = 280
+    queries.insertOrder.run({
+      client_id: clientId, item: 'CTS DOWNPIPE B58', cantidad: 1,
+      link_compra: null, valor_presupuestado: 680, fecha_compra: null,
+      valor_compra: 400, valor_debitado: 400, tax: 0, costo_envio: 0,
+      peso: null, status: 'DONE', is_stock: 1, is_paid: 1,
+      asignado: null, ganancia: 280, paid_to: null, tracking: null,
+      observaciones: null, stock_item_id: stockId,
+    })
+
+    const balance = queries.stockBalance.all() as Record<string, unknown>[]
+    expect(balance[0].total_invertido).toBe(2000) // 5 * 400
+    expect(balance[0].total_recuperado).toBe(280) // real profit, not $680
+    expect(balance[0].balance).toBe(-1720) // 280 - 2000
+  })
+
   it('handles multiple stock items independently', () => {
     const clientId = seedClient(queries)
     const stock1 = seedStockItem(queries, { marca: 'CTS', item: 'DOWNPIPE', variante: 'B58', cantidad_invertida: 5, costo_por_unidad: 400 })

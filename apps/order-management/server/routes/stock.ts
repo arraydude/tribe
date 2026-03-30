@@ -131,16 +131,22 @@ stock.post('/:id/sell', async (c) => {
       throw new Error('cliente or client_id required')
     }
 
+    // Calculate real cost and profit
+    const costoPerUnit = Number(stockItem.costo_por_unidad) || 0
+    const costoTotal = Math.round(costoPerUnit * Number(qty) * 100) / 100
+    const precioVenta = order_data.valor_presupuestado != null ? Number(order_data.valor_presupuestado) : 0
+    const gananciaReal = Math.round((precioVenta - costoTotal) * 100) / 100
+
     // Create order
     const orderResult = queries.insertOrder.run({
       client_id: clientId,
       item: order_data.item || '',
       cantidad: Number(qty),
       link_compra: order_data.link_compra || null,
-      valor_presupuestado: order_data.valor_presupuestado != null ? Number(order_data.valor_presupuestado) : null,
+      valor_presupuestado: precioVenta,
       fecha_compra: order_data.fecha_compra || null,
-      valor_compra: 0,
-      valor_debitado: 0,
+      valor_compra: costoTotal,
+      valor_debitado: costoTotal,
       tax: 0,
       costo_envio: 0,
       peso: null,
@@ -148,7 +154,7 @@ stock.post('/:id/sell', async (c) => {
       is_stock: 1,
       is_paid: order_data.is_paid ? 1 : 0,
       asignado: order_data.asignado || null,
-      ganancia: order_data.ganancia != null ? Number(order_data.ganancia) : null,
+      ganancia: gananciaReal,
       paid_to: order_data.paid_to || null,
       tracking: null,
       observaciones: order_data.observaciones || null,

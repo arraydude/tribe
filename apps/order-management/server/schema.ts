@@ -121,7 +121,7 @@ export function createQueries(db: Database.Database) {
         COALESCE(SUM(o.ganancia), 0) - (si.cantidad_invertida * si.costo_por_unidad) as balance,
         COUNT(o.id) as ventas_count
       FROM stock_items si
-      LEFT JOIN orders o ON o.stock_item_id = si.id AND o.deleted_at IS NULL
+      LEFT JOIN orders o ON o.stock_item_id = si.id AND o.deleted_at IS NULL AND o.is_stock = 1
       GROUP BY si.id
       ORDER BY si.marca, si.item
     `),

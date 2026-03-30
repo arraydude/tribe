@@ -89,10 +89,12 @@ export function OrderForm({ order, onDone, onCancel }: OrderFormProps) {
     if (!si) return
     const clientType = clients?.find((c) => c.name === form.cliente)?.type ?? 'standard'
     const price = getStockPrice(si, clientType)
+    const costo = si.costo_por_unidad
+    const ganancia = price != null ? Math.round((price - costo) * 100) / 100 : ''
     setForm((f) => ({
-      ...f, item: getStockDisplayName(si), valor_compra: 0,
-      valor_presupuestado: price ?? '', ganancia: price ?? '',
-      tax: 0, costo_envio: 0, valor_debitado: 0, peso: '',
+      ...f, item: getStockDisplayName(si), valor_compra: costo,
+      valor_presupuestado: price ?? '', ganancia,
+      tax: 0, costo_envio: 0, valor_debitado: costo, peso: '',
     }))
     setOverrides(new Set(CALC_FIELDS))
   }
