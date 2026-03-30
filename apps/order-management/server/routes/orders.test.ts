@@ -102,6 +102,7 @@ describe('Orders CRUD', () => {
       status: 'DISPONIBLE', tracking: null,
       fecha_compra: null, fecha_llegada: null,
       valor_compra_total: null, tax: null, costo_envio: null,
+      investment_order_id: null,
     })
     const stockId = Number(stockResult.lastInsertRowid)
 

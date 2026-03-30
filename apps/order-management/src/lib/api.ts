@@ -100,6 +100,7 @@ export interface StockItem {
   valor_compra_total: number | null
   tax: number | null
   costo_envio: number | null
+  investment_order_id: number | null
   created_at: string
   updated_at: string
 }
@@ -177,6 +178,10 @@ export const api = {
       request<StockItem>(`/stock/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     sell: (id: number, data: { qty: number; order_data: Record<string, unknown> }) =>
       request<{ order: OrderRow; stock_item: StockItem }>(`/stock/${id}/sell`, {
+        method: 'POST', body: JSON.stringify(data),
+      }),
+    fromOrder: (orderId: number, data: Record<string, unknown>) =>
+      request<{ stock_item: StockItem; order: OrderRow }>(`/stock/from-order/${orderId}`, {
         method: 'POST', body: JSON.stringify(data),
       }),
   },

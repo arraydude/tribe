@@ -14,7 +14,16 @@ const statusConfig: Record<string, { variant: 'default' | 'secondary' | 'outline
   'RECEIVED BAIRES': { variant: 'secondary' },
 }
 
-export function createColumns(onEdit: (order: OrderRow) => void, onDelete: (order: OrderRow) => void): ColumnDef<OrderRow>[] {
+function canConvertToStock(order: OrderRow): boolean {
+  return (
+    !order.stock_item_id &&
+    order.is_stock === 0 &&
+    (order.valor_presupuestado === 0 || order.valor_presupuestado === null) &&
+    (order.status === 'RECEIVED BAIRES' || order.status === 'DONE')
+  )
+}
+
+export function createColumns(onEdit: (order: OrderRow) => void, onDelete: (order: OrderRow) => void, onConvertToStock?: (order: OrderRow) => void): ColumnDef<OrderRow>[] {
   return [
     {
       accessorKey: 'cliente',
@@ -25,7 +34,12 @@ export function createColumns(onEdit: (order: OrderRow) => void, onDelete: (orde
       accessorKey: 'item',
       header: ({ column }) => <DataTableColumnHeader column={column} title="Item" />,
       cell: ({ row }) => (
-        <span className="max-w-[220px] truncate block text-muted-foreground text-sm">{row.original.item ?? '—'}</span>
+        <div className="flex items-center gap-1.5 max-w-[220px]">
+          <span className="truncate text-muted-foreground text-sm">{row.original.item ?? '—'}</span>
+          {row.original.stock_item_id && row.original.is_stock === 0 && (
+            <Badge variant="outline">STOCK</Badge>
+          )}
+        </div>
       ),
     },
     {
@@ -100,6 +114,11 @@ export function createColumns(onEdit: (order: OrderRow) => void, onDelete: (orde
       id: 'actions',
       cell: ({ row }) => (
         <div className="flex items-center gap-1">
+          {onConvertToStock && canConvertToStock(row.original) && (
+            <Button variant="ghost" size="xs" onClick={() => onConvertToStock(row.original)}>
+              → Stock
+            </Button>
+          )}
           <Button variant="ghost" size="xs" onClick={() => onEdit(row.original)}>
             Editar
           </Button>

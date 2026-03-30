@@ -128,6 +128,20 @@ export function useSellStockItem() {
   })
 }
 
+export function useConvertToStock() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ orderId, data }: { orderId: number; data: Record<string, unknown> }) =>
+      api.stock.fromOrder(orderId, data),
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: queryKeys.stock.all }),
+        qc.invalidateQueries({ queryKey: queryKeys.orders.all }),
+      ])
+    },
+  })
+}
+
 export function useCreateOrder() {
   const qc = useQueryClient()
   return useMutation({

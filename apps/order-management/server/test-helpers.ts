@@ -21,6 +21,7 @@ export function seedStockItem(queries: ReturnType<typeof createQueries>, overrid
   status: string; tracking: string | null
   fecha_compra: string | null; fecha_llegada: string | null
   valor_compra_total: number | null; tax: number | null; costo_envio: number | null
+  investment_order_id: number | null
 }> = {}) {
   const defaults = {
     marca: 'CTS', item: 'DOWNPIPE', variante: 'B58',
@@ -29,6 +30,7 @@ export function seedStockItem(queries: ReturnType<typeof createQueries>, overrid
     status: 'DISPONIBLE', tracking: null,
     fecha_compra: null, fecha_llegada: null,
     valor_compra_total: null, tax: null, costo_envio: null,
+    investment_order_id: null,
   }
   const data = { ...defaults, ...overrides }
   const result = queries.insertStockItem.run(data)

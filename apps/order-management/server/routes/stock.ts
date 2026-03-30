@@ -164,4 +164,65 @@ stock.post('/:id/sell', async (c) => {
   }
 })
 
+// Convert investment order → stock item
+stock.post('/from-order/:orderId', async (c) => {
+  const orderId = Number(c.req.param('orderId'))
+  const body = await c.req.json()
+
+  const { marca, item, variante, cantidad_invertida, cantidad_disponible } = body
+  if (!marca || !item) return c.json({ error: 'marca and item are required' }, 400)
+  if (!cantidad_invertida || cantidad_invertida < 1) return c.json({ error: 'cantidad_invertida must be >= 1' }, 400)
+
+  const convertTx = db.transaction(() => {
+    const order = queries.getOrder.get(orderId) as Record<string, unknown> | undefined
+    if (!order) throw new Error('Order not found')
+    if (order.stock_item_id) throw new Error('Order already converted to stock')
+
+    const valorCompra = Number(order.valor_compra) || 0
+    const tax = Number(order.tax) || 0
+    const costoEnvio = Number(order.costo_envio) || 0
+    const qty = Number(cantidad_invertida)
+    const costoPerUnit = body.costo_por_unidad != null
+      ? Number(body.costo_por_unidad)
+      : Math.round(((valorCompra + tax + costoEnvio) / qty) * 100) / 100
+
+    const stockResult = queries.insertStockItem.run({
+      marca: marca.trim(),
+      item: item.trim(),
+      variante: variante?.trim() || null,
+      cantidad_invertida: qty,
+      cantidad_disponible: Number(cantidad_disponible) ?? qty,
+      costo_por_unidad: costoPerUnit,
+      precio_lista: body.precio_lista != null ? Number(body.precio_lista) : Math.round(costoPerUnit * 1.4 * 100) / 100,
+      precio_taller: body.precio_taller != null ? Number(body.precio_taller) : Math.round(costoPerUnit * 1.3 * 100) / 100,
+      precio_emi: body.precio_emi != null ? Number(body.precio_emi) : Math.round(costoPerUnit * 1.2 * 100) / 100,
+      status: 'DISPONIBLE',
+      tracking: (order.tracking as string) || null,
+      fecha_compra: (order.fecha_compra as string) || null,
+      fecha_llegada: null,
+      valor_compra_total: valorCompra,
+      tax,
+      costo_envio: costoEnvio,
+      investment_order_id: orderId,
+    })
+
+    const stockId = Number(stockResult.lastInsertRowid)
+    queries.setOrderStockItemId.run({ id: orderId, stock_item_id: stockId })
+
+    return {
+      stock_item: queries.getStockItem.get(stockId),
+      order: queries.getOrder.get(orderId),
+    }
+  })
+
+  try {
+    const result = convertTx()
+    return c.json(result, 201)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Conversion failed'
+    const status = msg === 'Order not found' ? 404 : msg === 'Order already converted to stock' ? 409 : 400
+    return c.json({ error: msg }, status)
+  }
+})
+
 export default stock

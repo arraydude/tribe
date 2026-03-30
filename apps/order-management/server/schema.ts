@@ -35,6 +35,7 @@ export const SCHEMA_SQL = `
     costo_envio         REAL,
     created_at          TEXT DEFAULT (datetime('now')),
     updated_at          TEXT DEFAULT (datetime('now')),
+    investment_order_id INTEGER REFERENCES orders(id),
     UNIQUE(marca, item, variante)
   );
 
@@ -74,10 +75,10 @@ export function createQueries(db: Database.Database) {
     insertStockItem: db.prepare(`
       INSERT INTO stock_items (marca, item, variante, cantidad_invertida, cantidad_disponible, costo_por_unidad,
         precio_lista, precio_taller, precio_emi, status, tracking, fecha_compra, fecha_llegada,
-        valor_compra_total, tax, costo_envio)
+        valor_compra_total, tax, costo_envio, investment_order_id)
       VALUES (@marca, @item, @variante, @cantidad_invertida, @cantidad_disponible, @costo_por_unidad,
         @precio_lista, @precio_taller, @precio_emi, @status, @tracking, @fecha_compra, @fecha_llegada,
-        @valor_compra_total, @tax, @costo_envio)
+        @valor_compra_total, @tax, @costo_envio, @investment_order_id)
     `),
     updateStockItem: db.prepare(`
       UPDATE stock_items SET
@@ -103,6 +104,8 @@ export function createQueries(db: Database.Database) {
         updated_at = datetime('now')
       WHERE id = @id
     `),
+    getStockItemByInvestmentOrderId: db.prepare('SELECT * FROM stock_items WHERE investment_order_id = ?'),
+
     stockBalance: db.prepare(`
       SELECT
         si.id, si.marca, si.item, si.variante,
@@ -160,6 +163,10 @@ export function createQueries(db: Database.Database) {
         asignado = @asignado, ganancia = @ganancia, paid_to = @paid_to,
         tracking = @tracking, observaciones = @observaciones,
         updated_at = datetime('now')
+      WHERE id = @id AND deleted_at IS NULL
+    `),
+    setOrderStockItemId: db.prepare(`
+      UPDATE orders SET stock_item_id = @stock_item_id, updated_at = datetime('now')
       WHERE id = @id AND deleted_at IS NULL
     `),
     softDelete: db.prepare(`

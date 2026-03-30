@@ -40,6 +40,7 @@ const migrations = [
   'ALTER TABLE stock_items ADD COLUMN valor_compra_total REAL',
   'ALTER TABLE stock_items ADD COLUMN tax REAL',
   'ALTER TABLE stock_items ADD COLUMN costo_envio REAL',
+  'ALTER TABLE stock_items ADD COLUMN investment_order_id INTEGER REFERENCES orders(id)',
 ]
 for (const sql of migrations) {
   try { db.exec(sql) } catch { /* column already exists */ }

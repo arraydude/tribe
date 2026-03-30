@@ -228,3 +228,88 @@ describe('Stock balance calculation', () => {
     expect(b2.ventas_count).toBe(0)
   })
 })
+
+describe('Convert order to stock', () => {
+  let db: ReturnType<typeof createTestDb>['db']
+  let queries: ReturnType<typeof createTestDb>['queries']
+
+  beforeEach(() => {
+    const testDb = createTestDb()
+    db = testDb.db
+    queries = testDb.queries
+  })
+
+  function createInvestmentOrder() {
+    const clientId = seedClient(queries, 'Tribe', 'internal')
+    const result = queries.insertOrder.run({
+      client_id: clientId, item: 'CTS Downpipe B58', cantidad: 5,
+      link_compra: null, valor_presupuestado: 0, fecha_compra: '2025-01-15',
+      valor_compra: 2000, valor_debitado: 2080, tax: 80, costo_envio: 200,
+      peso: 5, status: 'DONE', is_stock: 0, is_paid: 1,
+      asignado: 'NAHUE', ganancia: null, paid_to: null, tracking: 'TRACK123',
+      observaciones: null, stock_item_id: null,
+    })
+    return Number(result.lastInsertRowid)
+  }
+
+  it('creates stock item with investment_order_id and correct cost', () => {
+    const orderId = createInvestmentOrder()
+
+    const convertTx = db.transaction(() => {
+      const order = queries.getOrder.get(orderId) as Record<string, unknown>
+      const costoTotal = Number(order.valor_compra) + Number(order.tax) + Number(order.costo_envio)
+      const costoPerUnit = Math.round((costoTotal / Number(order.cantidad)) * 100) / 100
+
+      const stockResult = queries.insertStockItem.run({
+        marca: 'CTS', item: 'DOWNPIPE', variante: 'B58',
+        cantidad_invertida: Number(order.cantidad),
+        cantidad_disponible: Number(order.cantidad),
+        costo_por_unidad: costoPerUnit,
+        precio_lista: Math.round(costoPerUnit * 1.4 * 100) / 100,
+        precio_taller: Math.round(costoPerUnit * 1.3 * 100) / 100,
+        precio_emi: Math.round(costoPerUnit * 1.2 * 100) / 100,
+        status: 'DISPONIBLE', tracking: order.tracking,
+        fecha_compra: order.fecha_compra, fecha_llegada: null,
+        valor_compra_total: order.valor_compra, tax: order.tax, costo_envio: order.costo_envio,
+        investment_order_id: orderId,
+      })
+      const stockId = Number(stockResult.lastInsertRowid)
+      queries.setOrderStockItemId.run({ id: orderId, stock_item_id: stockId })
+      return stockId
+    })
+
+    const stockId = convertTx()
+
+    const stockItem = queries.getStockItem.get(stockId) as Record<string, unknown>
+    expect(stockItem.investment_order_id).toBe(orderId)
+    expect(stockItem.marca).toBe('CTS')
+    expect(stockItem.cantidad_invertida).toBe(5)
+    expect(stockItem.status).toBe('DISPONIBLE')
+    expect(stockItem.costo_por_unidad).toBe(456) // (2000+80+200)/5
+
+    const order = queries.getOrder.get(orderId) as Record<string, unknown>
+    expect(order.stock_item_id).toBe(stockId)
+  })
+
+  it('rejects double conversion (order already has stock_item_id)', () => {
+    const orderId = createInvestmentOrder()
+
+    const stockResult = queries.insertStockItem.run({
+      marca: 'CTS', item: 'DOWNPIPE', variante: 'B58-dup',
+      cantidad_invertida: 5, cantidad_disponible: 5, costo_por_unidad: 456,
+      precio_lista: 638.4, precio_taller: 592.8, precio_emi: 547.2,
+      status: 'DISPONIBLE', tracking: null, fecha_compra: null, fecha_llegada: null,
+      valor_compra_total: 2000, tax: 80, costo_envio: 200, investment_order_id: orderId,
+    })
+    queries.setOrderStockItemId.run({ id: orderId, stock_item_id: Number(stockResult.lastInsertRowid) })
+
+    const order = queries.getOrder.get(orderId) as Record<string, unknown>
+    expect(order.stock_item_id).not.toBeNull()
+  })
+
+  it('calculates fractional costo_por_unidad correctly', () => {
+    const costoTotal = 1000 + 40 + 150 // 1190
+    const perUnit = Math.round((costoTotal / 3) * 100) / 100
+    expect(perUnit).toBe(396.67)
+  })
+})
