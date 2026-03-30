@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { useCreateStockItem, useUpdateStockItem } from '@/hooks/useOrders'
+import { useCreateStockItem, useUpdateStockItem, useStockItems } from '@/hooks/useOrders'
 import type { StockItem } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
@@ -15,6 +15,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Combobox,
+  ComboboxInput,
+  ComboboxContent,
+  ComboboxList,
+  ComboboxItem,
+  ComboboxEmpty,
+} from '@/components/ui/combobox'
 
 interface StockFormProps {
   stockItem: StockItem | null
@@ -33,6 +41,11 @@ function round2(n: number) {
 
 export function StockForm({ stockItem, onDone, onCancel }: StockFormProps) {
   const isEdit = !!stockItem
+  const { data: allStockItems } = useStockItems()
+
+  const uniqueMarcas = useMemo(() => [...new Set((allStockItems ?? []).map((s) => s.marca))].sort(), [allStockItems])
+  const uniqueItems = useMemo(() => [...new Set((allStockItems ?? []).map((s) => s.item))].sort(), [allStockItems])
+  const uniqueVariantes = useMemo(() => [...new Set((allStockItems ?? []).map((s) => s.variante).filter(Boolean) as string[])].sort(), [allStockItems])
 
   const [form, setForm] = useState({
     marca: stockItem?.marca ?? '',
@@ -197,35 +210,44 @@ export function StockForm({ stockItem, onDone, onCancel }: StockFormProps) {
         <div className="md:col-span-2">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
-              <Label htmlFor="marca">
+              <Label>
                 Marca <span className="text-destructive">*</span>
               </Label>
-              <Input
-                id="marca"
-                value={form.marca}
-                onChange={(e) => set('marca', e.target.value)}
-                placeholder="Ej: CTS Turbo"
-              />
+              <Combobox items={uniqueMarcas} value={form.marca || null} onValueChange={(val) => set('marca', val ?? '')}>
+                <ComboboxInput placeholder="Ej: CTS Turbo" showClear />
+                <ComboboxContent>
+                  <ComboboxEmpty>Nueva marca</ComboboxEmpty>
+                  <ComboboxList>
+                    {(m) => <ComboboxItem key={m} value={m}>{m}</ComboboxItem>}
+                  </ComboboxList>
+                </ComboboxContent>
+              </Combobox>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="item">
+              <Label>
                 Item <span className="text-destructive">*</span>
               </Label>
-              <Input
-                id="item"
-                value={form.item}
-                onChange={(e) => set('item', e.target.value)}
-                placeholder="Ej: Intercooler"
-              />
+              <Combobox items={uniqueItems} value={form.item || null} onValueChange={(val) => set('item', val ?? '')}>
+                <ComboboxInput placeholder="Ej: Intercooler" showClear />
+                <ComboboxContent>
+                  <ComboboxEmpty>Nuevo item</ComboboxEmpty>
+                  <ComboboxList>
+                    {(i) => <ComboboxItem key={i} value={i}>{i}</ComboboxItem>}
+                  </ComboboxList>
+                </ComboboxContent>
+              </Combobox>
             </div>
             <div className="grid gap-2 sm:col-span-2">
-              <Label htmlFor="variante">Variante</Label>
-              <Input
-                id="variante"
-                value={form.variante}
-                onChange={(e) => set('variante', e.target.value)}
-                placeholder="Ej: B58 Gen 1"
-              />
+              <Label>Variante</Label>
+              <Combobox items={uniqueVariantes} value={form.variante || null} onValueChange={(val) => set('variante', val ?? '')}>
+                <ComboboxInput placeholder="Ej: B58 Gen 1" showClear />
+                <ComboboxContent>
+                  <ComboboxEmpty>Nueva variante</ComboboxEmpty>
+                  <ComboboxList>
+                    {(v) => <ComboboxItem key={v} value={v}>{v}</ComboboxItem>}
+                  </ComboboxList>
+                </ComboboxContent>
+              </Combobox>
             </div>
           </div>
         </div>

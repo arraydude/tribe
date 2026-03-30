@@ -1,8 +1,11 @@
 import { useState, useMemo } from 'react'
-import { useConvertToStock } from '@/hooks/useOrders'
+import { useConvertToStock, useStockItems } from '@/hooks/useOrders'
 import type { OrderRow } from '@/lib/api'
 
 import { Input } from '@/components/ui/input'
+import {
+  Combobox, ComboboxInput, ComboboxContent, ComboboxList, ComboboxItem, ComboboxEmpty,
+} from '@/components/ui/combobox'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
@@ -23,6 +26,11 @@ function round2(n: number) {
 
 export function ConvertToStockDialog({ order, open, onClose }: ConvertToStockDialogProps) {
   const convertMutation = useConvertToStock()
+  const { data: allStockItems } = useStockItems()
+
+  const uniqueMarcas = useMemo(() => [...new Set((allStockItems ?? []).map((s) => s.marca))].sort(), [allStockItems])
+  const uniqueItems = useMemo(() => [...new Set((allStockItems ?? []).map((s) => s.item))].sort(), [allStockItems])
+  const uniqueVariantes = useMemo(() => [...new Set((allStockItems ?? []).map((s) => s.variante).filter(Boolean) as string[])].sort(), [allStockItems])
 
   const costCalc = useMemo(() => {
     if (!order) return { total: 0, perUnit: 0 }
@@ -115,15 +123,39 @@ export function ConvertToStockDialog({ order, open, onClose }: ConvertToStockDia
             <div className="grid grid-cols-3 gap-4">
               <Field>
                 <FieldLabel>Marca <span className="text-destructive">*</span></FieldLabel>
-                <Input value={form.marca} onChange={(e) => setForm((f) => ({ ...f, marca: e.target.value }))} placeholder="CTS" />
+                <Combobox items={uniqueMarcas} value={form.marca || null} onValueChange={(val) => setForm((f) => ({ ...f, marca: val ?? '' }))}>
+                  <ComboboxInput placeholder="CTS" showClear />
+                  <ComboboxContent>
+                    <ComboboxEmpty>Nueva marca</ComboboxEmpty>
+                    <ComboboxList>
+                      {(m) => <ComboboxItem key={m} value={m}>{m}</ComboboxItem>}
+                    </ComboboxList>
+                  </ComboboxContent>
+                </Combobox>
               </Field>
               <Field>
                 <FieldLabel>Item <span className="text-destructive">*</span></FieldLabel>
-                <Input value={form.item} onChange={(e) => setForm((f) => ({ ...f, item: e.target.value }))} />
+                <Combobox items={uniqueItems} value={form.item || null} onValueChange={(val) => setForm((f) => ({ ...f, item: val ?? '' }))}>
+                  <ComboboxInput showClear />
+                  <ComboboxContent>
+                    <ComboboxEmpty>Nuevo item</ComboboxEmpty>
+                    <ComboboxList>
+                      {(i) => <ComboboxItem key={i} value={i}>{i}</ComboboxItem>}
+                    </ComboboxList>
+                  </ComboboxContent>
+                </Combobox>
               </Field>
               <Field>
                 <FieldLabel>Variante</FieldLabel>
-                <Input value={form.variante} onChange={(e) => setForm((f) => ({ ...f, variante: e.target.value }))} placeholder="B58" />
+                <Combobox items={uniqueVariantes} value={form.variante || null} onValueChange={(val) => setForm((f) => ({ ...f, variante: val ?? '' }))}>
+                  <ComboboxInput placeholder="B58" showClear />
+                  <ComboboxContent>
+                    <ComboboxEmpty>Nueva variante</ComboboxEmpty>
+                    <ComboboxList>
+                      {(v) => <ComboboxItem key={v} value={v}>{v}</ComboboxItem>}
+                    </ComboboxList>
+                  </ComboboxContent>
+                </Combobox>
               </Field>
             </div>
 
