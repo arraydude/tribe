@@ -43,18 +43,19 @@ stock.post('/', async (c) => {
     item: item.trim(),
     variante: variante?.trim() || null,
     cantidad_invertida: Number(cantidad_invertida) || 0,
-    cantidad_disponible: Number(cantidad_disponible) || Number(cantidad_invertida) || 0,
+    cantidad_disponible: (body.status || 'EN TRANSITO') === 'EN TRANSITO' ? 0 : (Number(cantidad_disponible) || Number(cantidad_invertida) || 0),
     costo_por_unidad: Number(costo_por_unidad) || 0,
     precio_lista: precio_lista != null ? Number(precio_lista) : null,
     precio_taller: precio_taller != null ? Number(precio_taller) : null,
     precio_emi: precio_emi != null ? Number(precio_emi) : null,
-    status: body.status || 'DISPONIBLE',
+    status: body.status || 'EN TRANSITO',
     tracking: body.tracking || null,
     fecha_compra: body.fecha_compra || null,
     fecha_llegada: body.fecha_llegada || null,
     valor_compra_total: body.valor_compra_total != null ? Number(body.valor_compra_total) : null,
     tax: body.tax != null ? Number(body.tax) : null,
     costo_envio: body.costo_envio != null ? Number(body.costo_envio) : null,
+    investment_order_id: body.investment_order_id ?? null,
   })
 
   const created = queries.getStockItem.get(result.lastInsertRowid)
