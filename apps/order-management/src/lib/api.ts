@@ -81,6 +81,34 @@ export interface TeamMember {
   name: string
 }
 
+export interface StockItem {
+  id: number
+  marca: string
+  item: string
+  variante: string | null
+  cantidad_invertida: number
+  cantidad_disponible: number
+  costo_por_unidad: number
+  precio_lista: number | null
+  precio_taller: number | null
+  precio_emi: number | null
+  created_at: string
+  updated_at: string
+}
+
+export function getStockPrice(item: StockItem, clientType: string): number | null {
+  switch (clientType) {
+    case 'taller': return item.precio_taller
+    case 'emi': return item.precio_emi
+    case 'internal': return 0
+    default: return item.precio_lista
+  }
+}
+
+export function getStockDisplayName(item: StockItem): string {
+  return [item.marca, item.item, item.variante].filter(Boolean).join(' ')
+}
+
 // Orders
 export const api = {
   orders: {
@@ -115,5 +143,17 @@ export const api = {
   },
   teamMembers: {
     list: () => request<TeamMember[]>('/team-members'),
+  },
+  stock: {
+    list: () => request<StockItem[]>('/stock'),
+    get: (id: number) => request<StockItem>(`/stock/${id}`),
+    create: (data: Record<string, unknown>) =>
+      request<StockItem>('/stock', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: number, data: Record<string, unknown>) =>
+      request<StockItem>(`/stock/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    sell: (id: number, data: { qty: number; order_data: Record<string, unknown> }) =>
+      request<{ order: OrderRow; stock_item: StockItem }>(`/stock/${id}/sell`, {
+        method: 'POST', body: JSON.stringify(data),
+      }),
   },
 }

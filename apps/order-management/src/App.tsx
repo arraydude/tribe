@@ -4,6 +4,7 @@ import { Dashboard } from '@/components/Dashboard'
 import { OrdersTable } from '@/components/OrdersTable'
 import { OrderForm } from '@/components/OrderForm'
 import { QuotationCalc } from '@/components/QuotationCalc'
+import { StockDashboard } from '@/components/StockDashboard'
 import type { OrderRow } from '@/lib/api'
 
 import { Button } from '@/components/ui/button'
@@ -18,7 +19,7 @@ import {
 } from '@/components/ui/dialog'
 import { Moon, Sun } from '@phosphor-icons/react'
 
-type View = 'dashboard' | 'orders' | 'quotation'
+type View = 'dashboard' | 'orders' | 'stock' | 'quotation'
 
 function App() {
   const [view, setView] = useState<View>('dashboard')
@@ -69,7 +70,7 @@ function App() {
             <Separator orientation="vertical" className="hidden h-8 sm:block" />
 
             <nav className="hidden sm:flex items-center gap-1">
-              {(['dashboard', 'orders', 'quotation'] as const).map((v) => (
+              {(['dashboard', 'orders', 'stock', 'quotation'] as const).map((v) => (
                 <Button
                   key={v}
                   variant={view === v ? 'secondary' : 'ghost'}
@@ -77,7 +78,7 @@ function App() {
                   onClick={() => setView(v)}
                   className="uppercase tracking-wider text-xs"
                 >
-                  {v === 'dashboard' ? 'Dashboard' : v === 'orders' ? 'Pedidos' : 'Cotizador'}
+                  {{ dashboard: 'Dashboard', orders: 'Pedidos', stock: 'Stock', quotation: 'Cotizador' }[v]}
                 </Button>
               ))}
             </nav>
@@ -125,6 +126,8 @@ function App() {
           </div>
         )}
 
+        {view === 'stock' && <StockDashboard />}
+
         {view === 'quotation' && (
           <div>
             <h2 className="text-lg font-semibold tracking-wider text-foreground mb-6">
@@ -135,8 +138,16 @@ function App() {
         )}
       </main>
 
+      {/* Overlay for non-modal dialog */}
+      {formOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/50 pointer-events-none supports-backdrop-filter:backdrop-blur-xs"
+          aria-hidden
+        />
+      )}
+
       {/* Order Form Dialog */}
-      <Dialog open={formOpen} onOpenChange={(open) => { if (!open) handleFormCancel() }}>
+      <Dialog open={formOpen} onOpenChange={(open) => { if (!open) handleFormCancel() }} modal={false}>
         <DialogContent className="sm:max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingOrder ? 'Editar Pedido' : 'Nuevo Pedido'}</DialogTitle>

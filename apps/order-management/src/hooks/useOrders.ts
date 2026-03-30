@@ -19,6 +19,11 @@ export const queryKeys = {
   teamMembers: {
     all: ['team-members'] as const,
   },
+  stock: {
+    all: ['stock'] as const,
+    list: () => [...queryKeys.stock.all, 'list'] as const,
+    detail: (id: number) => [...queryKeys.stock.all, 'detail', id] as const,
+  },
 }
 
 // Stale time constants
@@ -27,6 +32,7 @@ const STALE_TIME = {
   dashboard: 1000 * 60 * 2,   // 2 min — derived from orders
   clients: 1000 * 60 * 10,    // 10 min — rarely changes
   teamMembers: 1000 * 60 * 30, // 30 min — almost never changes
+  stock: 1000 * 60 * 5,       // 5 min — changes less than orders
 }
 
 export function useOrders(params?: { search?: string; status?: string; paid?: string }) {
@@ -67,6 +73,50 @@ export function useTeamMembers() {
     queryKey: queryKeys.teamMembers.all,
     queryFn: () => api.teamMembers.list(),
     staleTime: STALE_TIME.teamMembers,
+  })
+}
+
+export function useStockItems() {
+  return useQuery({
+    queryKey: queryKeys.stock.list(),
+    queryFn: () => api.stock.list(),
+    staleTime: STALE_TIME.stock,
+  })
+}
+
+export function useCreateStockItem() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: Record<string, unknown>) => api.stock.create(data),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: queryKeys.stock.all })
+    },
+  })
+}
+
+export function useUpdateStockItem() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: Record<string, unknown> }) =>
+      api.stock.update(id, data),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: queryKeys.stock.all })
+    },
+  })
+}
+
+export function useSellStockItem() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, qty, order_data }: { id: number; qty: number; order_data: Record<string, unknown> }) =>
+      api.stock.sell(id, { qty, order_data }),
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: queryKeys.stock.all }),
+        qc.invalidateQueries({ queryKey: queryKeys.orders.all }),
+        qc.invalidateQueries({ queryKey: queryKeys.dashboard.all }),
+      ])
+    },
   })
 }
 

@@ -1,0 +1,141 @@
+import { Hono } from 'hono'
+import db, { queries } from '../db.js'
+
+const stock = new Hono()
+
+// List all stock items
+stock.get('/', (c) => {
+  const items = queries.listStockItems.all()
+  return c.json(items)
+})
+
+// Get single stock item
+stock.get('/:id', (c) => {
+  const item = queries.getStockItem.get(Number(c.req.param('id')))
+  if (!item) return c.json({ error: 'Stock item not found' }, 404)
+  return c.json(item)
+})
+
+// Create stock item (investment)
+stock.post('/', async (c) => {
+  const body = await c.req.json()
+  const { marca, item, variante, cantidad_invertida, cantidad_disponible, costo_por_unidad, precio_lista, precio_taller, precio_emi } = body
+
+  if (!marca || !item) {
+    return c.json({ error: 'marca and item are required' }, 400)
+  }
+
+  const result = queries.insertStockItem.run({
+    marca: marca.trim(),
+    item: item.trim(),
+    variante: variante?.trim() || null,
+    cantidad_invertida: Number(cantidad_invertida) || 0,
+    cantidad_disponible: Number(cantidad_disponible) || Number(cantidad_invertida) || 0,
+    costo_por_unidad: Number(costo_por_unidad) || 0,
+    precio_lista: precio_lista != null ? Number(precio_lista) : null,
+    precio_taller: precio_taller != null ? Number(precio_taller) : null,
+    precio_emi: precio_emi != null ? Number(precio_emi) : null,
+  })
+
+  const created = queries.getStockItem.get(result.lastInsertRowid)
+  return c.json(created, 201)
+})
+
+// Update stock item
+stock.put('/:id', async (c) => {
+  const id = Number(c.req.param('id'))
+  const existing = queries.getStockItem.get(id)
+  if (!existing) return c.json({ error: 'Stock item not found' }, 404)
+
+  const body = await c.req.json()
+  const ex = existing as Record<string, unknown>
+
+  queries.updateStockItem.run({
+    id,
+    marca: (body.marca ?? ex.marca as string).trim(),
+    item: (body.item ?? ex.item as string).trim(),
+    variante: body.variante !== undefined ? body.variante?.trim() || null : ex.variante,
+    cantidad_invertida: body.cantidad_invertida != null ? Number(body.cantidad_invertida) : ex.cantidad_invertida,
+    cantidad_disponible: body.cantidad_disponible != null ? Number(body.cantidad_disponible) : ex.cantidad_disponible,
+    costo_por_unidad: body.costo_por_unidad != null ? Number(body.costo_por_unidad) : ex.costo_por_unidad,
+    precio_lista: body.precio_lista !== undefined ? (body.precio_lista != null ? Number(body.precio_lista) : null) : ex.precio_lista,
+    precio_taller: body.precio_taller !== undefined ? (body.precio_taller != null ? Number(body.precio_taller) : null) : ex.precio_taller,
+    precio_emi: body.precio_emi !== undefined ? (body.precio_emi != null ? Number(body.precio_emi) : null) : ex.precio_emi,
+  })
+
+  const updated = queries.getStockItem.get(id)
+  return c.json(updated)
+})
+
+// Sell from stock — transactional: decrement stock + create order
+stock.post('/:id/sell', async (c) => {
+  const stockId = Number(c.req.param('id'))
+  const body = await c.req.json()
+  const { qty, order_data } = body
+
+  if (!qty || qty < 1) return c.json({ error: 'qty must be >= 1' }, 400)
+  if (!order_data) return c.json({ error: 'order_data is required' }, 400)
+
+  const sellTransaction = db.transaction(() => {
+    // Decrement stock
+    const result = queries.decrementStock.run({ id: stockId, qty: Number(qty) })
+    if (result.changes === 0) {
+      throw new Error('Insufficient stock')
+    }
+
+    // Resolve client
+    let clientId: number
+    if (order_data.client_id) {
+      clientId = Number(order_data.client_id)
+    } else if (order_data.cliente) {
+      const existing = queries.getClientByName.get(order_data.cliente.trim()) as { id: number } | undefined
+      if (existing) {
+        clientId = existing.id
+      } else {
+        const ins = queries.insertClient.run(order_data.cliente.trim(), order_data.client_type || 'standard')
+        clientId = Number(ins.lastInsertRowid)
+      }
+    } else {
+      throw new Error('cliente or client_id required')
+    }
+
+    // Create order
+    const orderResult = queries.insertOrder.run({
+      client_id: clientId,
+      item: order_data.item || '',
+      cantidad: Number(qty),
+      link_compra: order_data.link_compra || null,
+      valor_presupuestado: order_data.valor_presupuestado != null ? Number(order_data.valor_presupuestado) : null,
+      fecha_compra: order_data.fecha_compra || null,
+      valor_compra: 0,
+      valor_debitado: 0,
+      tax: 0,
+      costo_envio: 0,
+      peso: null,
+      status: order_data.status || 'TO DO',
+      is_stock: 1,
+      is_paid: order_data.is_paid ? 1 : 0,
+      asignado: order_data.asignado || null,
+      ganancia: order_data.ganancia != null ? Number(order_data.ganancia) : null,
+      paid_to: order_data.paid_to || null,
+      tracking: null,
+      observaciones: order_data.observaciones || null,
+    })
+
+    const order = queries.getOrder.get(Number(orderResult.lastInsertRowid))
+    const stockItem = queries.getStockItem.get(stockId)
+
+    return { order, stock_item: stockItem }
+  })
+
+  try {
+    const result = sellTransaction()
+    return c.json(result, 201)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Sell failed'
+    const status = msg === 'Insufficient stock' ? 409 : 400
+    return c.json({ error: msg }, status)
+  }
+})
+
+export default stock

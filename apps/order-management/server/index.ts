@@ -4,6 +4,7 @@ import { cors } from 'hono/cors'
 import orders from './routes/orders.js'
 import dashboard from './routes/dashboard.js'
 import quotation from './routes/quotation.js'
+import stock from './routes/stock.js'
 import { queries } from './db.js'
 
 const app = new Hono()
@@ -13,6 +14,7 @@ app.use('/*', cors())
 app.route('/api/orders', orders)
 app.route('/api/dashboard', dashboard)
 app.route('/api/quotation', quotation)
+app.route('/api/stock', stock)
 
 // Clients endpoint
 app.get('/api/clients', (c) => {
