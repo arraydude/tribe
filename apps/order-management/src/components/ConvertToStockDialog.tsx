@@ -1,4 +1,7 @@
-import { useState, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useForm, Controller } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 import { useConvertToStock, useStockItems } from '@/hooks/useOrders'
 import type { OrderRow } from '@/lib/api'
 
@@ -12,13 +15,22 @@ import { Separator } from '@/components/ui/separator'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog'
-import { Field, FieldGroup, FieldLabel, FieldDescription as FieldDesc } from '@/components/ui/field'
+import { Field, FieldGroup, FieldLabel, FieldDescription, FieldError } from '@/components/ui/field'
 
 interface ConvertToStockDialogProps {
   order: OrderRow | null
   open: boolean
   onClose: () => void
 }
+
+const stockSchema = z.object({
+  marca: z.string().min(1, 'Marca es requerida'),
+  item: z.string().min(1, 'Item es requerido'),
+  variante: z.string(),
+  cantidad_invertida: z.string(),
+})
+
+type StockFormValues = z.infer<typeof stockSchema>
 
 function round2(n: number) {
   return Math.round(n * 100) / 100
@@ -42,46 +54,47 @@ export function ConvertToStockDialog({ order, open, onClose }: ConvertToStockDia
     return { total, perUnit: round2(total / qty) }
   }, [order])
 
-  const [form, setForm] = useState({
-    marca: '', item: '', variante: '',
-    cantidad_invertida: order?.cantidad?.toString() ?? '1',
+  const { register, handleSubmit, control, reset, formState: { errors } } = useForm<StockFormValues>({
+    resolver: zodResolver(stockSchema),
+    defaultValues: {
+      marca: '',
+      item: order?.item ?? '',
+      variante: '',
+      cantidad_invertida: String(order?.cantidad ?? 1),
+    },
   })
 
-  // Reset form when order changes
-  const [lastOrderId, setLastOrderId] = useState<number | null>(null)
-  if (order && order.id !== lastOrderId) {
-    setLastOrderId(order.id)
-    setForm({
-      marca: '', item: order.item ?? '', variante: '',
-      cantidad_invertida: order.cantidad?.toString() ?? '1',
-    })
-  }
+  useEffect(() => {
+    if (order) {
+      reset({
+        marca: '',
+        item: order.item ?? '',
+        variante: '',
+        cantidad_invertida: String(order.cantidad ?? 1),
+      })
+    }
+  }, [order?.id])
 
   const costoPerUnit = costCalc.perUnit
   const precioLista = round2(costoPerUnit * 1.4)
   const precioTaller = round2(costoPerUnit * 1.3)
   const precioEmi = round2(costoPerUnit * 1.2)
 
-  const [error, setError] = useState('')
+  const [apiError, setApiError] = useState('')
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-    if (!form.marca.trim() || !form.item.trim()) {
-      setError('Marca e Item son obligatorios')
-      return
-    }
+  const onSubmit = async (data: StockFormValues) => {
+    setApiError('')
     if (!order) return
 
     try {
       await convertMutation.mutateAsync({
         orderId: order.id,
         data: {
-          marca: form.marca.trim(),
-          item: form.item.trim(),
-          variante: form.variante.trim() || null,
-          cantidad_invertida: Number(form.cantidad_invertida) || 1,
-          cantidad_disponible: Number(form.cantidad_invertida) || 1,
+          marca: data.marca.trim(),
+          item: data.item.trim(),
+          variante: data.variante.trim() || null,
+          cantidad_invertida: Number(data.cantidad_invertida) || 1,
+          cantidad_disponible: Number(data.cantidad_invertida) || 1,
           costo_por_unidad: costoPerUnit,
           precio_lista: precioLista,
           precio_taller: precioTaller,
@@ -90,7 +103,7 @@ export function ConvertToStockDialog({ order, open, onClose }: ConvertToStockDia
       })
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error convirtiendo a stock')
+      setApiError(err instanceof Error ? err.message : 'Error convirtiendo a stock')
     }
   }
 
@@ -106,63 +119,83 @@ export function ConvertToStockDialog({ order, open, onClose }: ConvertToStockDia
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit}>
-          {error && (
+        <form onSubmit={handleSubmit(onSubmit)}>
+          {apiError && (
             <div className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-              {error}
+              {apiError}
             </div>
           )}
 
           <FieldGroup>
-            <FieldDesc>
+            <FieldDescription>
               Costos del pedido: Compra {usd(Number(order?.valor_compra) || 0)} + Tax {usd(Number(order?.tax) || 0)} + Envío {usd(Number(order?.costo_envio) || 0)} = <strong>{usd(costCalc.total)}</strong>
-            </FieldDesc>
+            </FieldDescription>
 
             <Separator />
 
             <div className="grid grid-cols-3 gap-4">
-              <Field>
+              <Field data-invalid={!!errors.marca}>
                 <FieldLabel>Marca <span className="text-destructive">*</span></FieldLabel>
-                <Combobox items={uniqueMarcas} value={form.marca || null} onValueChange={(val) => setForm((f) => ({ ...f, marca: val ?? '' }))}>
-                  <ComboboxInput placeholder="CTS" showClear />
-                  <ComboboxContent>
-                    <ComboboxEmpty>Nueva marca</ComboboxEmpty>
-                    <ComboboxList>
-                      {(m) => <ComboboxItem key={m} value={m}>{m}</ComboboxItem>}
-                    </ComboboxList>
-                  </ComboboxContent>
-                </Combobox>
+                <Controller
+                  control={control}
+                  name="marca"
+                  render={({ field }) => (
+                    <Combobox items={uniqueMarcas} value={field.value || null} onValueChange={(val) => field.onChange(val ?? '')}>
+                      <ComboboxInput placeholder="CTS" showClear />
+                      <ComboboxContent>
+                        <ComboboxEmpty>Nueva marca</ComboboxEmpty>
+                        <ComboboxList>
+                          {(m) => <ComboboxItem key={m} value={m}>{m}</ComboboxItem>}
+                        </ComboboxList>
+                      </ComboboxContent>
+                    </Combobox>
+                  )}
+                />
+                {errors.marca && <FieldError>{errors.marca.message}</FieldError>}
               </Field>
-              <Field>
+              <Field data-invalid={!!errors.item}>
                 <FieldLabel>Item <span className="text-destructive">*</span></FieldLabel>
-                <Combobox items={uniqueItems} value={form.item || null} onValueChange={(val) => setForm((f) => ({ ...f, item: val ?? '' }))}>
-                  <ComboboxInput showClear />
-                  <ComboboxContent>
-                    <ComboboxEmpty>Nuevo item</ComboboxEmpty>
-                    <ComboboxList>
-                      {(i) => <ComboboxItem key={i} value={i}>{i}</ComboboxItem>}
-                    </ComboboxList>
-                  </ComboboxContent>
-                </Combobox>
+                <Controller
+                  control={control}
+                  name="item"
+                  render={({ field }) => (
+                    <Combobox items={uniqueItems} value={field.value || null} onValueChange={(val) => field.onChange(val ?? '')}>
+                      <ComboboxInput showClear />
+                      <ComboboxContent>
+                        <ComboboxEmpty>Nuevo item</ComboboxEmpty>
+                        <ComboboxList>
+                          {(i) => <ComboboxItem key={i} value={i}>{i}</ComboboxItem>}
+                        </ComboboxList>
+                      </ComboboxContent>
+                    </Combobox>
+                  )}
+                />
+                {errors.item && <FieldError>{errors.item.message}</FieldError>}
               </Field>
               <Field>
                 <FieldLabel>Variante</FieldLabel>
-                <Combobox items={uniqueVariantes} value={form.variante || null} onValueChange={(val) => setForm((f) => ({ ...f, variante: val ?? '' }))}>
-                  <ComboboxInput placeholder="B58" showClear />
-                  <ComboboxContent>
-                    <ComboboxEmpty>Nueva variante</ComboboxEmpty>
-                    <ComboboxList>
-                      {(v) => <ComboboxItem key={v} value={v}>{v}</ComboboxItem>}
-                    </ComboboxList>
-                  </ComboboxContent>
-                </Combobox>
+                <Controller
+                  control={control}
+                  name="variante"
+                  render={({ field }) => (
+                    <Combobox items={uniqueVariantes} value={field.value || null} onValueChange={(val) => field.onChange(val ?? '')}>
+                      <ComboboxInput placeholder="B58" showClear />
+                      <ComboboxContent>
+                        <ComboboxEmpty>Nueva variante</ComboboxEmpty>
+                        <ComboboxList>
+                          {(v) => <ComboboxItem key={v} value={v}>{v}</ComboboxItem>}
+                        </ComboboxList>
+                      </ComboboxContent>
+                    </Combobox>
+                  )}
+                />
               </Field>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <Field>
                 <FieldLabel>Cantidad</FieldLabel>
-                <Input type="number" value={form.cantidad_invertida} onChange={(e) => setForm((f) => ({ ...f, cantidad_invertida: e.target.value }))} />
+                <Input type="number" {...register('cantidad_invertida')} />
               </Field>
               <Field>
                 <FieldLabel>Costo/Unidad <Badge variant="secondary" className="ml-auto">auto</Badge></FieldLabel>

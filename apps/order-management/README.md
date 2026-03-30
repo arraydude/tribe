@@ -26,7 +26,30 @@ npm run test:watch   # Tests en modo watch
 
 ### Importación
 
-Tribe compra una parte de un proveedor en USA, la importa a Argentina, y la vende al cliente. Los costos se calculan automáticamente: tax (4%), envío ($45/kg), y margen (20-30%).
+Tribe compra una parte de un proveedor en USA, la importa a Argentina, y la vende al cliente.
+
+#### Fórmula de costos
+
+```
+Compra (USD)                    ← input: precio del proveedor
+× 1.01 = Debitado              ← costo banco (1%)
+× 1.04 = Subtotal              ← debitado + comisión financiera (4%)
++ Envío ($45/kg)               ← auto desde peso, o input directo
+─────────────────────────────
+= Costo Total
+
+Costo Total × (1 + margen)    = Presupuestado (override-able)
+Presupuestado - Costo Total    = Ganancia
+```
+
+- **Compra**: lo que cobra el proveedor (USD)
+- **Debitado**: lo que debita el banco/tarjeta (~1% más que compra)
+- **Subtotal (Tax 4%)**: debitado × 1.04 — incluye la comisión financiera de Tribe
+- **Envío**: $45 USD por kg de peso
+- **Costo Total**: subtotal + envío — el costo real para Tribe
+- **Margen**: configurable entre 10% y 30%
+- **Presupuestado**: precio al cliente (auto-calculado, pero se puede overridear con un precio fijo)
+- **Ganancia**: presupuestado − costo total
 
 ### Venta de Stock
 

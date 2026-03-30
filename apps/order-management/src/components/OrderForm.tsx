@@ -1,11 +1,12 @@
-import { useState, useMemo } from 'react'
+import { useMemo, useState } from 'react'
+import { useForm, Controller } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 import { useCreateOrder, useUpdateOrder, useClients, useTeamMembers } from '@/hooks/useOrders'
 import type { OrderRow } from '@/lib/api'
-import { cn } from '@/lib/utils'
 
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
 import {
@@ -17,7 +18,7 @@ import { DialogFooter } from '@/components/ui/dialog'
 import {
   Combobox, ComboboxInput, ComboboxContent, ComboboxList, ComboboxItem, ComboboxEmpty,
 } from '@/components/ui/combobox'
-import { Field, FieldGroup, FieldLabel, FieldDescription } from '@/components/ui/field'
+import { Field, FieldGroup, FieldLabel, FieldDescription, FieldError } from '@/components/ui/field'
 
 interface OrderFormProps {
   order: OrderRow | null
@@ -26,47 +27,58 @@ interface OrderFormProps {
 }
 
 const STATUS_OPTIONS = ['TO DO', 'IN PROGRESS', 'RECEIVED BAIRES', 'DONE']
-const CALC_FIELDS = ['tax', 'costo_envio', 'valor_presupuestado', 'ganancia', 'valor_debitado'] as const
-type CalcField = (typeof CALC_FIELDS)[number]
+
+const orderSchema = z.object({
+  cliente: z.string().min(1, 'Cliente es requerido'),
+  item: z.string().min(1, 'Item es requerido'),
+  cantidad: z.string(),
+  link_compra: z.string(),
+  status: z.string(),
+  asignado: z.string().min(1, 'Asignado es requerido'),
+  tracking: z.string(),
+  valor_compra: z.string(),
+  peso: z.string(),
+  margen: z.string(),
+  presup_override: z.string(),
+  saldado: z.string(),
+  observaciones: z.string(),
+})
+
+type OrderFormValues = z.infer<typeof orderSchema>
 
 function round2(n: number) {
   return Math.round(n * 100) / 100
 }
 
+function fmtUSD(n: number | null): string {
+  if (n == null || isNaN(n)) return '—'
+  return `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
 export function OrderForm({ order, onDone, onCancel }: OrderFormProps) {
   const isEdit = !!order
 
-  const [form, setForm] = useState({
-    cliente: order?.cliente ?? '',
-    item: order?.item ?? '',
-    cantidad: order?.cantidad ?? 1,
-    valor_presupuestado: order?.valor_presupuestado ?? '',
-    valor_compra: order?.valor_compra ?? '',
-    valor_debitado: order?.valor_debitado ?? '',
-    tax: order?.tax ?? '',
-    costo_envio: order?.costo_envio ?? '',
-    peso: order?.peso ?? '',
-    margen: '30',
-    status: order?.status ?? 'TO DO',
-    is_paid: order?.is_paid === 1,
-    asignado: order?.asignado ?? '',
-    ganancia: order?.ganancia ?? '',
-    paid_to: order?.paid_to ?? '',
-    tracking: order?.tracking ?? '',
-    link_compra: order?.link_compra ?? '',
-    observaciones: order?.observaciones ?? '',
+  const { register, handleSubmit, control, watch, setValue, formState: { errors } } = useForm<OrderFormValues>({
+    resolver: zodResolver(orderSchema),
+    defaultValues: {
+      cliente: order?.cliente ?? '',
+      item: order?.item ?? '',
+      cantidad: String(order?.cantidad ?? 1),
+      link_compra: order?.link_compra ?? '',
+      status: order?.status ?? 'TO DO',
+      asignado: order?.asignado ?? '',
+      tracking: order?.tracking ?? '',
+      valor_compra: order?.valor_compra != null ? String(order.valor_compra) : '',
+      peso: order?.peso != null ? String(order.peso) : '',
+      margen: '30',
+      presup_override: order?.valor_presupuestado != null ? String(order.valor_presupuestado) : '',
+      saldado: order?.is_paid && order?.paid_to ? order.paid_to : 'NO',
+      observaciones: order?.observaciones ?? '',
+    },
   })
 
-  const [overrides, setOverrides] = useState<Set<CalcField>>(() => {
-    if (!order) return new Set<CalcField>()
-    const s = new Set<CalcField>()
-    for (const f of CALC_FIELDS) {
-      if (order[f] != null) s.add(f)
-    }
-    return s
-  })
-
-  const [error, setError] = useState('')
+  const [presupIsManual, setPresupIsManual] = useState(isEdit && order?.valor_presupuestado != null)
+  const [apiError, setApiError] = useState('')
   const createMutation = useCreateOrder()
   const updateMutation = useUpdateOrder()
   const { data: clients } = useClients()
@@ -74,53 +86,55 @@ export function OrderForm({ order, onDone, onCancel }: OrderFormProps) {
 
   const clientNames = useMemo(() => (clients ?? []).map((c) => c.name), [clients])
 
+  const valorCompra = watch('valor_compra')
+  const peso = watch('peso')
+  const margen = watch('margen')
+  const presupOverride = watch('presup_override')
+
   const calc = useMemo(() => {
-    const compra = Number(form.valor_compra) || 0
-    const peso = Number(form.peso) || 0
-    const m = Number(form.margen) / 100
-    const tax = compra ? round2(compra * 0.04) : null
-    const costo_envio = peso ? round2(45 * peso) : null
-    const costoTotal = compra ? round2(compra + (tax ?? 0) + (costo_envio ?? 0)) : null
-    const valor_presupuestado = costoTotal && !isNaN(m) ? round2(costoTotal * (1 + m)) : null
-    const ganancia = valor_presupuestado && costoTotal ? round2(valor_presupuestado - costoTotal) : null
-    return { tax, costo_envio, valor_debitado: costoTotal, valor_presupuestado, ganancia }
-  }, [form.valor_compra, form.peso, form.margen])
+    const compra = Number(valorCompra) || 0
+    const pesoNum = Number(peso) || 0
+    const m = Number(margen) / 100
 
-  const getCalcValue = (field: CalcField): string | number => {
-    if (overrides.has(field)) return form[field]
-    return calc[field] ?? ''
-  }
-  const isAutoActive = (field: CalcField) => !overrides.has(field) && calc[field] != null
+    if (!compra) return null
 
-  const set = (key: string, value: unknown) => {
-    setForm((f) => ({ ...f, [key]: value }))
-    if ((CALC_FIELDS as readonly string[]).includes(key)) {
-      setOverrides((s) => new Set(s).add(key as CalcField))
-    }
-  }
-  const resetCalcField = (field: CalcField) => {
-    setOverrides((s) => { const next = new Set(s); next.delete(field); return next })
-    setForm((f) => ({ ...f, [field]: '' }))
-  }
+    const banco = round2(compra * 0.01)
+    const debitado = round2(compra + banco)
+    const comision = round2(debitado * 0.04)
+    const subtotal = round2(debitado + comision)
+    const envio = pesoNum ? round2(45 * pesoNum) : 0
+    const costoTotal = round2(subtotal + envio)
+    const presupAuto = round2(costoTotal * (1 + m))
+    const presup = presupIsManual ? (Number(presupOverride) || 0) : presupAuto
+    const ganancia = round2(presup - costoTotal)
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-    if (!form.cliente.trim() || !form.item.trim()) { setError('Cliente e Item son obligatorios'); return }
+    return { compra, banco, debitado, comision, subtotal, envio, costoTotal, presupAuto, presup, ganancia }
+  }, [valorCompra, peso, margen, presupIsManual, presupOverride])
 
-    const effectiveVal = (field: CalcField) => { const v = getCalcValue(field); return v !== '' ? Number(v) : null }
+  const onSubmit = async (data: OrderFormValues) => {
+    setApiError('')
+    const isPaid = data.saldado !== 'NO'
+    const paidTo = isPaid ? data.saldado : null
+
     const payload: Record<string, unknown> = {
-      cliente: form.cliente.trim(), item: form.item.trim(),
-      cantidad: Number(form.cantidad) || 1,
-      valor_presupuestado: effectiveVal('valor_presupuestado'),
-      valor_compra: form.valor_compra !== '' ? Number(form.valor_compra) : null,
-      valor_debitado: effectiveVal('valor_debitado'),
-      tax: effectiveVal('tax'), costo_envio: effectiveVal('costo_envio'),
-      peso: form.peso !== '' ? Number(form.peso) : null,
-      status: form.status, is_stock: false, is_paid: form.is_paid,
-      asignado: form.asignado || null, ganancia: effectiveVal('ganancia'),
-      paid_to: form.paid_to || null, tracking: form.tracking || null,
-      link_compra: form.link_compra || null, observaciones: form.observaciones || null,
+      cliente: data.cliente.trim(),
+      item: data.item.trim(),
+      cantidad: Number(data.cantidad) || 1,
+      valor_compra: data.valor_compra ? Number(data.valor_compra) : null,
+      valor_debitado: calc?.debitado ?? null,
+      tax: calc?.comision ?? null,
+      costo_envio: calc?.envio ?? null,
+      peso: data.peso ? Number(data.peso) : null,
+      valor_presupuestado: calc?.presup ?? null,
+      ganancia: calc?.ganancia ?? null,
+      status: data.status,
+      is_stock: false,
+      is_paid: isPaid,
+      asignado: data.asignado || null,
+      paid_to: paidTo,
+      tracking: data.tracking || null,
+      link_compra: data.link_compra || null,
+      observaciones: data.observaciones || null,
     }
 
     try {
@@ -131,17 +145,17 @@ export function OrderForm({ order, onDone, onCancel }: OrderFormProps) {
       }
       onDone()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error guardando pedido')
+      setApiError(err instanceof Error ? err.message : 'Error guardando pedido')
     }
   }
 
   const isPending = createMutation.isPending || updateMutation.isPending
 
   return (
-    <form onSubmit={handleSubmit}>
-      {error && (
+    <form onSubmit={handleSubmit(onSubmit)}>
+      {apiError && (
         <div className="mb-6 rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          {error}
+          {apiError}
         </div>
       )}
 
@@ -150,72 +164,46 @@ export function OrderForm({ order, onDone, onCancel }: OrderFormProps) {
           {/* Pedido */}
           <div className="grid grid-cols-1 gap-10 md:grid-cols-3">
             <div>
-              <h2 className="text-foreground font-semibold">Pedido</h2>
+              <h2 className="font-semibold">Pedido</h2>
               <FieldDescription>Importación directa para el cliente.</FieldDescription>
             </div>
             <div className="md:col-span-2">
               <FieldGroup>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <Field>
+                  <Field data-invalid={!!errors.cliente}>
                     <FieldLabel>Cliente <span className="text-destructive">*</span></FieldLabel>
-                    <Combobox items={clientNames} value={form.cliente || null} onValueChange={(val) => set('cliente', val ?? '')}>
-                      <ComboboxInput placeholder="Buscar cliente..." showClear />
-                      <ComboboxContent>
-                        <ComboboxEmpty>Sin resultados</ComboboxEmpty>
-                        <ComboboxList>
-                          {(name) => <ComboboxItem key={name} value={name}>{name}</ComboboxItem>}
-                        </ComboboxList>
-                      </ComboboxContent>
-                    </Combobox>
+                    <Controller
+                      control={control}
+                      name="cliente"
+                      render={({ field }) => (
+                        <Combobox items={clientNames} value={field.value || null} onValueChange={(val) => field.onChange(val ?? '')}>
+                          <ComboboxInput placeholder="Buscar cliente..." showClear />
+                          <ComboboxContent>
+                            <ComboboxEmpty>Sin resultados</ComboboxEmpty>
+                            <ComboboxList>
+                              {(name) => <ComboboxItem key={name} value={name}>{name}</ComboboxItem>}
+                            </ComboboxList>
+                          </ComboboxContent>
+                        </Combobox>
+                      )}
+                    />
+                    {errors.cliente && <FieldError>{errors.cliente.message}</FieldError>}
                   </Field>
-                  <Field>
+                  <Field data-invalid={!!errors.item}>
                     <FieldLabel htmlFor="item-import">Item <span className="text-destructive">*</span></FieldLabel>
-                    <Input id="item-import" value={form.item} onChange={(e) => set('item', e.target.value)} placeholder="Producto o parte" />
+                    <Input id="item-import" {...register('item')} placeholder="Producto o parte" />
+                    {errors.item && <FieldError>{errors.item.message}</FieldError>}
                   </Field>
                 </div>
-              </FieldGroup>
-            </div>
-          </div>
-
-          <Separator />
-
-          {/* Valores */}
-          <div className="grid grid-cols-1 gap-10 md:grid-cols-3">
-            <div>
-              <h2 className="text-foreground font-semibold">Valores</h2>
-              <FieldDescription>Costos, precios y cálculos automáticos.</FieldDescription>
-              <div className="mt-4 flex flex-col gap-2">
-                <FieldLabel className="text-muted-foreground text-xs">Margen</FieldLabel>
-                <ToggleGroup type="single" value={form.margen} onValueChange={(v) => { if (v) setForm((f) => ({ ...f, margen: v })) }} size="sm" variant="outline">
-                  <ToggleGroupItem value="20">20%</ToggleGroupItem>
-                  <ToggleGroupItem value="30">30%</ToggleGroupItem>
-                </ToggleGroup>
-                <Input type="number" value={form.margen} onChange={(e) => setForm((f) => ({ ...f, margen: e.target.value }))} className="w-20 text-center text-sm" />
-              </div>
-            </div>
-            <div className="md:col-span-2">
-              <FieldGroup>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                  <Field>
-                    <FieldLabel htmlFor="valor_compra">Compra (USD)</FieldLabel>
-                    <Input id="valor_compra" type="number" step="any" value={form.valor_compra} onChange={(e) => set('valor_compra', e.target.value)} />
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor="peso">Peso (kg)</FieldLabel>
-                    <Input id="peso" type="number" step="any" value={form.peso} onChange={(e) => set('peso', e.target.value)} />
-                  </Field>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Field>
                     <FieldLabel htmlFor="cantidad">Cantidad</FieldLabel>
-                    <Input id="cantidad" type="number" step="any" value={form.cantidad} onChange={(e) => set('cantidad', e.target.value)} />
+                    <Input id="cantidad" type="number" min="1" {...register('cantidad')} />
                   </Field>
-                </div>
-                <Separator />
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-5">
-                  <CalcField id="tax" label="Tax 4%" value={getCalcValue('tax')} isAuto={isAutoActive('tax')} isOverridden={overrides.has('tax') && String(form.tax) !== ''} onChange={(v) => set('tax', v)} onReset={() => resetCalcField('tax')} />
-                  <CalcField id="costo_envio" label="Envio" value={getCalcValue('costo_envio')} isAuto={isAutoActive('costo_envio')} isOverridden={overrides.has('costo_envio') && String(form.costo_envio) !== ''} onChange={(v) => set('costo_envio', v)} onReset={() => resetCalcField('costo_envio')} />
-                  <CalcField id="valor_debitado" label="Debitado" value={getCalcValue('valor_debitado')} isAuto={isAutoActive('valor_debitado')} isOverridden={overrides.has('valor_debitado') && String(form.valor_debitado) !== ''} onChange={(v) => set('valor_debitado', v)} onReset={() => resetCalcField('valor_debitado')} />
-                  <CalcField id="valor_presupuestado" label="Presup." value={getCalcValue('valor_presupuestado')} isAuto={isAutoActive('valor_presupuestado')} isOverridden={overrides.has('valor_presupuestado') && String(form.valor_presupuestado) !== ''} onChange={(v) => set('valor_presupuestado', v)} onReset={() => resetCalcField('valor_presupuestado')} />
-                  <CalcField id="ganancia" label="Ganancia" value={getCalcValue('ganancia')} isAuto={isAutoActive('ganancia')} isOverridden={overrides.has('ganancia') && String(form.ganancia) !== ''} onChange={(v) => set('ganancia', v)} onReset={() => resetCalcField('ganancia')} />
+                  <Field>
+                    <FieldLabel htmlFor="link_compra">Link Compra</FieldLabel>
+                    <Input id="link_compra" {...register('link_compra')} placeholder="URL del producto" />
+                  </Field>
                 </div>
               </FieldGroup>
             </div>
@@ -226,77 +214,197 @@ export function OrderForm({ order, onDone, onCancel }: OrderFormProps) {
           {/* Estado */}
           <div className="grid grid-cols-1 gap-10 md:grid-cols-3">
             <div>
-              <h2 className="text-foreground font-semibold">Estado</h2>
-              <FieldDescription>Estado actual, asignación y pagos.</FieldDescription>
+              <h2 className="font-semibold">Estado</h2>
+              <FieldDescription>Progreso, asignación y seguimiento.</FieldDescription>
             </div>
             <div className="md:col-span-2">
               <FieldGroup>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Field>
                     <FieldLabel htmlFor="status">Status</FieldLabel>
-                    <Select value={form.status} onValueChange={(v) => set('status', v)}>
-                      <SelectTrigger id="status"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectGroup>
-                          {STATUS_OPTIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
+                    <Controller
+                      control={control}
+                      name="status"
+                      render={({ field }) => (
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <SelectTrigger id="status"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectGroup>
+                              {STATUS_OPTIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
                   </Field>
-                  <Field>
-                    <FieldLabel htmlFor="asignado">Asignado</FieldLabel>
-                    <Select value={form.asignado || undefined} onValueChange={(v) => set('asignado', v)}>
-                      <SelectTrigger id="asignado"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
-                      <SelectContent>
-                        <SelectGroup>
-                          {(teamMembers ?? []).map((m) => <SelectItem key={m.id} value={m.name}>{m.name}</SelectItem>)}
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                  <Field>
-                    <FieldLabel>Saldado</FieldLabel>
-                    <Button type="button" variant={form.is_paid ? 'default' : 'outline'} className="w-full" onClick={() => set('is_paid', !form.is_paid)}>
-                      {form.is_paid ? 'SI' : 'NO'}
-                    </Button>
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor="paid_to">Saldado A</FieldLabel>
-                    <Select value={form.paid_to || undefined} onValueChange={(v) => set('paid_to', v)}>
-                      <SelectTrigger id="paid_to"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
-                      <SelectContent>
-                        <SelectGroup>
-                          {(teamMembers ?? []).map((m) => <SelectItem key={m.id} value={m.name}>{m.name}</SelectItem>)}
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
+                  <Field data-invalid={!!errors.asignado}>
+                    <FieldLabel htmlFor="asignado">Asignado <span className="text-destructive">*</span></FieldLabel>
+                    <Controller
+                      control={control}
+                      name="asignado"
+                      render={({ field }) => (
+                        <Select value={field.value || undefined} onValueChange={field.onChange}>
+                          <SelectTrigger id="asignado"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+                          <SelectContent>
+                            <SelectGroup>
+                              {(teamMembers ?? []).map((m) => <SelectItem key={m.id} value={m.name}>{m.name}</SelectItem>)}
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                    {errors.asignado && <FieldError>{errors.asignado.message}</FieldError>}
                   </Field>
                 </div>
+                <Field>
+                  <FieldLabel htmlFor="tracking">Tracking</FieldLabel>
+                  <Input id="tracking" {...register('tracking')} />
+                </Field>
               </FieldGroup>
             </div>
           </div>
 
           <Separator />
 
-          {/* Detalles */}
+          {/* Costos */}
           <div className="grid grid-cols-1 gap-10 md:grid-cols-3">
             <div>
-              <h2 className="text-foreground font-semibold">Detalles</h2>
-              <FieldDescription>Tracking, links y observaciones.</FieldDescription>
+              <h2 className="font-semibold">Costos</h2>
+              <FieldDescription>Ingresá compra y peso, el resto se calcula.</FieldDescription>
+            </div>
+            <div className="md:col-span-2">
+              <FieldGroup>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <Field>
+                    <FieldLabel htmlFor="valor_compra">Compra (USD)</FieldLabel>
+                    <Input id="valor_compra" type="number" step="any" {...register('valor_compra')} placeholder="0.00" />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="peso">Peso (kg)</FieldLabel>
+                    <Input id="peso" type="number" step="any" {...register('peso')} placeholder="0.00" />
+                  </Field>
+                </div>
+
+                {/* Desglose */}
+                {calc && (
+                  <>
+                    <div className="rounded-md border p-4">
+                      <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">Desglose</p>
+                      <div className="space-y-1 font-mono text-sm">
+                        <BreakdownRow label="Compra" value={calc.compra} />
+                        <BreakdownRow label="+ Banco (1%)" value={calc.banco} muted />
+                        <BreakdownRow label="= Debitado" value={calc.debitado} bold />
+                        <BreakdownRow label="+ Comisión (4%)" value={calc.comision} muted />
+                        <BreakdownRow label="= Subtotal" value={calc.subtotal} bold />
+                        {calc.envio > 0 && (
+                          <BreakdownRow label={`+ Envío ($45 × ${Number(peso)}kg)`} value={calc.envio} muted />
+                        )}
+                        <Separator className="my-2" />
+                        <div className="flex justify-between pt-1 text-base font-bold">
+                          <span>Costo Total</span>
+                          <span>{fmtUSD(calc.costoTotal)}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Margen + Presupuestado + Ganancia */}
+                    <Field>
+                      <FieldLabel>Margen</FieldLabel>
+                      <div className="flex items-center gap-3">
+                        <Controller
+                          control={control}
+                          name="margen"
+                          render={({ field }) => (
+                            <ToggleGroup type="single" value={field.value} onValueChange={(v) => { if (v) field.onChange(v) }} size="sm" variant="outline">
+                              <ToggleGroupItem value="10">10%</ToggleGroupItem>
+                              <ToggleGroupItem value="20">20%</ToggleGroupItem>
+                              <ToggleGroupItem value="30">30%</ToggleGroupItem>
+                            </ToggleGroup>
+                          )}
+                        />
+                        <div className="flex items-center gap-1">
+                          <Input type="number" {...register('margen')} className="w-20 text-center text-sm" />
+                          <span className="text-sm text-muted-foreground">%</span>
+                        </div>
+                      </div>
+                    </Field>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="rounded-md border p-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground">Presupuestado</span>
+                          {presupIsManual ? (
+                            <button
+                              type="button"
+                              onClick={() => { setPresupIsManual(false); setValue('presup_override', '') }}
+                              className="text-xs text-muted-foreground hover:text-foreground"
+                            >
+                              ↺ auto
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => { setPresupIsManual(true); setValue('presup_override', String(calc.presupAuto)) }}
+                              className="text-xs text-muted-foreground hover:text-foreground"
+                            >
+                              editar
+                            </button>
+                          )}
+                        </div>
+                        {presupIsManual ? (
+                          <Input
+                            type="number"
+                            step="any"
+                            {...register('presup_override')}
+                            className="mt-1"
+                            autoFocus
+                          />
+                        ) : (
+                          <div className="mt-1 text-lg font-semibold">{fmtUSD(calc.presupAuto)}</div>
+                        )}
+                      </div>
+                      <div className="rounded-md border bg-muted/30 p-3">
+                        <span className="text-sm text-muted-foreground">Ganancia</span>
+                        <div className="mt-1 text-lg font-semibold">{fmtUSD(calc.ganancia)}</div>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </FieldGroup>
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Más opciones */}
+          <div className="grid grid-cols-1 gap-10 md:grid-cols-3">
+            <div>
+              <h2 className="font-semibold">Más opciones</h2>
+              <FieldDescription>Pagos y observaciones.</FieldDescription>
             </div>
             <div className="md:col-span-2">
               <FieldGroup>
                 <Field>
-                  <FieldLabel htmlFor="tracking">Tracking</FieldLabel>
-                  <Input id="tracking" value={form.tracking} onChange={(e) => set('tracking', e.target.value)} />
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="link_compra">Link Compra</FieldLabel>
-                  <Input id="link_compra" value={form.link_compra} onChange={(e) => set('link_compra', e.target.value)} />
+                  <FieldLabel htmlFor="saldado">Saldado</FieldLabel>
+                  <Controller
+                    control={control}
+                    name="saldado"
+                    render={({ field }) => (
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <SelectTrigger id="saldado"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            <SelectItem value="NO">NO</SelectItem>
+                            {(teamMembers ?? []).map((m) => <SelectItem key={m.id} value={m.name}>{m.name}</SelectItem>)}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
                 </Field>
                 <Field>
                   <FieldLabel htmlFor="observaciones">Observaciones</FieldLabel>
-                  <Textarea id="observaciones" value={form.observaciones} onChange={(e) => set('observaciones', e.target.value)} rows={4} />
+                  <Textarea id="observaciones" {...register('observaciones')} rows={3} />
                 </Field>
               </FieldGroup>
             </div>
@@ -314,21 +422,11 @@ export function OrderForm({ order, onDone, onCancel }: OrderFormProps) {
   )
 }
 
-function CalcField({ id, label, value, isAuto, isOverridden, onChange, onReset }: {
-  id: string; label: string; value: string | number
-  isAuto: boolean; isOverridden: boolean
-  onChange: (v: string) => void; onReset: () => void
-}) {
+function BreakdownRow({ label, value, bold, muted }: { label: string; value: number; bold?: boolean; muted?: boolean }) {
   return (
-    <Field>
-      <FieldLabel htmlFor={id}>
-        {label}
-        {isAuto && <Badge variant="secondary" className="ml-auto">auto</Badge>}
-        {isOverridden && (
-          <button type="button" onClick={onReset} className="ml-auto text-xs text-muted-foreground hover:text-foreground">↺ auto</button>
-        )}
-      </FieldLabel>
-      <Input id={id} type="number" step="any" value={value} onChange={(e) => onChange(e.target.value)} className={cn(isAuto && 'border-ring/30 bg-accent')} />
-    </Field>
+    <div className={`flex justify-between ${bold ? 'font-semibold' : ''} ${muted ? 'text-muted-foreground' : ''}`}>
+      <span>{label}</span>
+      <span>{fmtUSD(value)}</span>
+    </div>
   )
 }
