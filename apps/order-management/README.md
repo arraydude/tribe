@@ -7,7 +7,18 @@ Internal app for managing Tribe Shipping's orders and inventory.
 ```bash
 npm run dev          # Vite (5173) + API server (3456)
 npm run seed         # Seed DB from JSON
+npm test             # Correr tests (27 tests)
+npm run test:watch   # Tests en modo watch
 ```
+
+## Tests
+
+27 tests de integración que cubren los flujos financieros críticos. Usan SQLite in-memory (cada test tiene su propia BD aislada, sin state compartido).
+
+- **Stock sell (6)**: transacción atómica (decrementa stock + crea order), rollback en insuficiente, validación de status DISPONIBLE, prevención de oversell, linkeo de stock_item_id
+- **Stock balance (6)**: cálculo inversión vs recuperado, exclusión de soft-deleted, balance positivo/negativo, items independientes
+- **Quotation (9)**: tax 4%, envío $45/kg, márgenes (20/30/50%), redondeo a 2 decimales
+- **Orders (6)**: CRUD, resolución de cliente, soft delete, linkeo stock_item_id
 
 ## Order Types
 
