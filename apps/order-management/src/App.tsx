@@ -5,26 +5,29 @@ import { OrdersTable } from '@/components/OrdersTable'
 import { OrderForm } from '@/components/OrderForm'
 import { QuotationCalc } from '@/components/QuotationCalc'
 import { StockDashboard } from '@/components/StockDashboard'
+import { StockSaleDialog } from '@/components/StockSaleDialog'
+import { StockForm } from '@/components/StockForm'
 import type { OrderRow } from '@/lib/api'
 
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog'
-import { Moon, Sun } from '@phosphor-icons/react'
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Moon, Sun, Plus } from '@phosphor-icons/react'
 
 type View = 'dashboard' | 'orders' | 'stock' | 'quotation'
 
 function App() {
   const [view, setView] = useState<View>('dashboard')
   const [editingOrder, setEditingOrder] = useState<OrderRow | null>(null)
-  const [formOpen, setFormOpen] = useState(false)
+  const [orderFormOpen, setOrderFormOpen] = useState(false)
+  const [stockSaleOpen, setStockSaleOpen] = useState(false)
+  const [investmentOpen, setInvestmentOpen] = useState(false)
   const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'))
 
   useEffect(() => {
@@ -34,24 +37,19 @@ function App() {
   const { data: orders, isLoading: ordersLoading } = useOrders()
   const { data: dashboardData, isLoading: dashLoading } = useDashboardStats()
 
-  const handleNew = () => {
-    setEditingOrder(null)
-    setFormOpen(true)
-  }
-
   const handleEdit = (order: OrderRow) => {
     setEditingOrder(order)
-    setFormOpen(true)
+    setOrderFormOpen(true)
   }
 
   const handleFormDone = () => {
     setEditingOrder(null)
-    setFormOpen(false)
+    setOrderFormOpen(false)
   }
 
   const handleFormCancel = () => {
     setEditingOrder(null)
-    setFormOpen(false)
+    setOrderFormOpen(false)
   }
 
   const totalOrders = orders?.length ?? 0
@@ -85,9 +83,25 @@ function App() {
           </div>
 
           <div className="flex items-center gap-3">
-            <Button size="sm" onClick={handleNew}>
-              + Nuevo
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm">
+                  <Plus data-icon="inline-start" />
+                  Nuevo
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => { setEditingOrder(null); setOrderFormOpen(true) }}>
+                  Pedido de Importación
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setStockSaleOpen(true)}>
+                  Venta de Stock
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setInvestmentOpen(true)}>
+                  Inversión de Stock
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button
               variant="ghost"
               size="icon-sm"
@@ -138,27 +152,39 @@ function App() {
         )}
       </main>
 
-      {/* Overlay for non-modal dialog */}
-      {formOpen && (
-        <div
-          className="fixed inset-0 z-50 bg-black/50 pointer-events-none supports-backdrop-filter:backdrop-blur-xs"
-          aria-hidden
-        />
-      )}
-
-      {/* Order Form Dialog */}
-      <Dialog open={formOpen} onOpenChange={(open) => { if (!open) handleFormCancel() }} modal={false}>
+      {/* Order Form Dialog (importación + edit) */}
+      {orderFormOpen && <div className="fixed inset-0 z-50 bg-black/50 pointer-events-none supports-backdrop-filter:backdrop-blur-xs" aria-hidden />}
+      <Dialog open={orderFormOpen} onOpenChange={(open) => { if (!open) handleFormCancel() }} modal={false}>
         <DialogContent className="sm:max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editingOrder ? 'Editar Pedido' : 'Nuevo Pedido'}</DialogTitle>
+            <DialogTitle>{editingOrder ? 'Editar Pedido' : 'Pedido de Importación'}</DialogTitle>
             <DialogDescription>
-              {editingOrder ? 'Modificar los datos del pedido.' : 'Completar los datos para crear un nuevo pedido.'}
+              {editingOrder ? 'Modificar los datos del pedido.' : 'Importación directa para un cliente.'}
             </DialogDescription>
           </DialogHeader>
           <OrderForm
             order={editingOrder}
             onDone={handleFormDone}
             onCancel={handleFormCancel}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Stock Sale Dialog */}
+      <StockSaleDialog open={stockSaleOpen} onClose={() => setStockSaleOpen(false)} />
+
+      {/* Investment Dialog */}
+      {investmentOpen && <div className="fixed inset-0 z-50 bg-black/50 pointer-events-none supports-backdrop-filter:backdrop-blur-xs" aria-hidden />}
+      <Dialog open={investmentOpen} onOpenChange={(open) => { if (!open) setInvestmentOpen(false) }} modal={false}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Inversión de Stock</DialogTitle>
+            <DialogDescription>Registrar una nueva compra para el inventario.</DialogDescription>
+          </DialogHeader>
+          <StockForm
+            item={null}
+            onDone={() => setInvestmentOpen(false)}
+            onCancel={() => setInvestmentOpen(false)}
           />
         </DialogContent>
       </Dialog>
