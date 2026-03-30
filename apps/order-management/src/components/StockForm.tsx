@@ -57,7 +57,7 @@ export function StockForm({ stockItem, onDone, onCancel }: StockFormProps) {
     precio_lista: stockItem?.precio_lista ?? '',
     precio_taller: stockItem?.precio_taller ?? '',
     precio_emi: stockItem?.precio_emi ?? '',
-    status: stockItem?.status ?? 'DISPONIBLE',
+    status: stockItem?.status ?? 'EN TRANSITO',
     tracking: stockItem?.tracking ?? '',
     fecha_compra: stockItem?.fecha_compra ?? '',
     fecha_llegada: stockItem?.fecha_llegada ?? '',
@@ -255,18 +255,18 @@ export function StockForm({ stockItem, onDone, onCancel }: StockFormProps) {
 
       <Separator className="my-8" />
 
-      {/* Inventario */}
+      {/* Cantidad + Valor compra (always shown) */}
       <div className="grid grid-cols-1 gap-10 md:grid-cols-3">
         <div>
-          <h2 className="text-foreground font-semibold">Inventario</h2>
+          <h2 className="text-foreground font-semibold">{isEdit ? 'Inventario' : 'Inversión'}</h2>
           <p className="text-muted-foreground mt-1 text-sm">
-            Cantidades invertidas y disponibles.
+            {isEdit ? 'Cantidades invertidas.' : 'Cantidad y valor de la compra.'}
           </p>
         </div>
         <div className="md:col-span-2">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
-              <Label htmlFor="cantidad_invertida">Cantidad Invertida</Label>
+              <Label htmlFor="cantidad_invertida">Cantidad</Label>
               <Input
                 id="cantidad_invertida"
                 type="number"
@@ -275,10 +275,23 @@ export function StockForm({ stockItem, onDone, onCancel }: StockFormProps) {
                 onChange={(e) => set('cantidad_invertida', e.target.value)}
               />
             </div>
+            {!isEdit && (
+              <div className="grid gap-2">
+                <Label htmlFor="valor_compra_total_create">Valor Compra Total (USD)</Label>
+                <Input
+                  id="valor_compra_total_create"
+                  type="number"
+                  step="any"
+                  value={form.valor_compra_total}
+                  onChange={(e) => set('valor_compra_total', e.target.value)}
+                />
+              </div>
+            )}
           </div>
         </div>
       </div>
 
+      {isEdit && (<>
       <Separator className="my-8" />
 
       {/* Importacion */}
@@ -480,6 +493,7 @@ export function StockForm({ stockItem, onDone, onCancel }: StockFormProps) {
           </div>
         </div>
       </div>
+      </>)}
 
       <Separator className="my-8" />
 
