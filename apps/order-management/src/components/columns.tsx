@@ -51,6 +51,10 @@ export function createColumns(onEdit: (order: OrderRow) => void, onDelete: (orde
       accessorKey: 'valor_presupuestado',
       header: ({ column }) => <DataTableColumnHeader column={column} title="Presupuesto" />,
       cell: ({ row }) => <span className="font-mono tabular-nums text-muted-foreground text-sm">{usd(row.original.valor_presupuestado)}</span>,
+      filterFn: (row, _, value) => {
+        if (value === 'inversion') return !row.original.valor_presupuestado || row.original.valor_presupuestado === 0
+        return true
+      },
     },
     {
       accessorKey: 'valor_compra',
@@ -93,6 +97,11 @@ export function createColumns(onEdit: (order: OrderRow) => void, onDelete: (orde
         return row.original.is_paid
           ? <Badge variant="default">SI</Badge>
           : <span className="text-muted-foreground/40 text-xs">NO</span>
+      },
+      filterFn: (row, _, value) => {
+        if (value === 'SI') return row.original.is_paid === 1
+        if (value === 'NO') return row.original.is_paid === 0
+        return true
       },
     },
     {

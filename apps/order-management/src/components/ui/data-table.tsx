@@ -27,6 +27,7 @@ interface DataTableProps<TData, TValue> {
   data: TData[]
   searchKey?: string
   searchPlaceholder?: string
+  toolbar?: (table: ReturnType<typeof useReactTable<TData>>) => React.ReactNode
 }
 
 export function DataTable<TData, TValue>({
@@ -34,6 +35,7 @@ export function DataTable<TData, TValue>({
   data,
   searchKey,
   searchPlaceholder = 'Buscar...',
+  toolbar,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
@@ -55,7 +57,7 @@ export function DataTable<TData, TValue>({
 
   return (
     <div className="flex flex-col gap-4">
-      {searchKey && (
+      {toolbar ? toolbar(table) : searchKey && (
         <Input
           placeholder={searchPlaceholder}
           value={(table.getColumn(searchKey)?.getFilterValue() as string) ?? ''}

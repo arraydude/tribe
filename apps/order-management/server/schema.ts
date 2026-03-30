@@ -105,6 +105,12 @@ export function createQueries(db: Database.Database) {
       WHERE id = @id
     `),
     getStockItemByInvestmentOrderId: db.prepare('SELECT * FROM stock_items WHERE investment_order_id = ?'),
+    ordersByStockItemId: db.prepare(`
+      SELECT o.*, c.name as cliente, c.type as client_type
+      FROM orders o JOIN clients c ON o.client_id = c.id
+      WHERE o.stock_item_id = ? AND o.deleted_at IS NULL AND o.is_stock = 1
+      ORDER BY o.id DESC
+    `),
 
     stockBalance: db.prepare(`
       SELECT

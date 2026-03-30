@@ -15,6 +15,13 @@ stock.get('/balance', (c) => {
   return c.json(balance)
 })
 
+// Sales history for a stock item
+stock.get('/:id/sales', (c) => {
+  const id = Number(c.req.param('id'))
+  const orders = queries.ordersByStockItemId.all(id)
+  return c.json(orders)
+})
+
 // Get single stock item
 stock.get('/:id', (c) => {
   const item = queries.getStockItem.get(Number(c.req.param('id')))

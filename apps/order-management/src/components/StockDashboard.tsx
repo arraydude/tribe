@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
 import { useStockItems, useStockBalance } from '@/hooks/useOrders'
-import type { StockItem, StockBalance } from '@/lib/api'
+import type { StockItem, StockBalance, OrderRow } from '@/lib/api'
+import { api, getStockDisplayName } from '@/lib/api'
 import { StockForm } from './StockForm'
 
 import {
@@ -34,7 +35,7 @@ const statusBadgeVariant = (status: string): 'default' | 'secondary' | 'outline'
   }
 }
 
-function createStockColumns(onEdit: (id: number) => void): ColumnDef<StockBalance>[] {
+function createStockColumns(onEdit: (id: number) => void, onViewSales: (id: number) => void): ColumnDef<StockBalance>[] {
   return [
     {
       accessorKey: 'marca',
@@ -94,7 +95,16 @@ function createStockColumns(onEdit: (id: number) => void): ColumnDef<StockBalanc
     {
       accessorKey: 'ventas_count',
       header: 'Ventas',
-      cell: ({ row }) => <span className="font-mono tabular-nums text-sm">{row.original.ventas_count}</span>,
+      cell: ({ row }) => {
+        const count = row.original.ventas_count
+        return count > 0 ? (
+          <Button variant="ghost" size="xs" onClick={() => onViewSales(row.original.id)}>
+            {count} ventas
+          </Button>
+        ) : (
+          <span className="font-mono tabular-nums text-muted-foreground/40 text-sm">0</span>
+        )
+      },
     },
     {
       id: 'actions',
@@ -112,11 +122,17 @@ export function StockDashboard() {
   const { data: balanceData, isLoading: balanceLoading } = useStockBalance()
   const [formOpen, setFormOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<StockItem | null>(null)
+  const [salesItemId, setSalesItemId] = useState<number | null>(null)
+  const [salesData, setSalesData] = useState<OrderRow[] | null>(null)
 
   const columns = useMemo(() => createStockColumns((id) => {
     const fullItem = items?.find((i) => i.id === id) ?? null
     setEditingItem(fullItem)
     setFormOpen(true)
+  }, async (id) => {
+    setSalesItemId(id)
+    const data = await api.stock.sales(id)
+    setSalesData(data)
   }), [items])
 
   const kpis = useMemo(() => {
@@ -205,6 +221,49 @@ export function StockDashboard() {
             onDone={() => { setEditingItem(null); setFormOpen(false) }}
             onCancel={() => { setEditingItem(null); setFormOpen(false) }}
           />
+        </DialogContent>
+      </Dialog>
+
+      {/* Sales history dialog */}
+      <Dialog open={salesItemId !== null} onOpenChange={(open) => { if (!open) { setSalesItemId(null); setSalesData(null) } }}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Historial de Ventas</DialogTitle>
+            <DialogDescription>
+              {(() => {
+                const si = balanceData?.find((b) => b.id === salesItemId)
+                return si ? `${si.marca} ${si.item} ${si.variante ?? ''}` : ''
+              })()}
+            </DialogDescription>
+          </DialogHeader>
+          {salesData && salesData.length > 0 ? (
+            <div className="overflow-hidden border">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/50">
+                    <th className="px-3 py-2 text-left text-muted-foreground">Cliente</th>
+                    <th className="px-3 py-2 text-left text-muted-foreground">Precio</th>
+                    <th className="px-3 py-2 text-left text-muted-foreground">Ganancia</th>
+                    <th className="px-3 py-2 text-left text-muted-foreground">Estado</th>
+                    <th className="px-3 py-2 text-left text-muted-foreground">Saldado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {salesData.map((order) => (
+                    <tr key={order.id} className="border-b">
+                      <td className="px-3 py-2 font-medium">{order.cliente}</td>
+                      <td className="px-3 py-2 font-mono tabular-nums">{usd(order.valor_presupuestado)}</td>
+                      <td className="px-3 py-2 font-mono tabular-nums font-semibold">{usd(order.ganancia)}</td>
+                      <td className="px-3 py-2"><Badge variant={order.status === 'DONE' ? 'default' : 'secondary'}>{order.status}</Badge></td>
+                      <td className="px-3 py-2">{order.is_paid ? <Badge variant="default">SI</Badge> : <span className="text-muted-foreground/40">NO</span>}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-muted-foreground text-sm py-8 text-center">Sin ventas registradas.</p>
+          )}
         </DialogContent>
       </Dialog>
     </div>
