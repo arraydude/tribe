@@ -162,9 +162,9 @@ stock.post('/:id/sell', async (c) => {
     })
 
     const order = queries.getOrder.get(Number(orderResult.lastInsertRowid))
-    const stockItem = queries.getStockItem.get(stockId)
+    const updatedStock = queries.getStockItem.get(stockId)
 
-    return { order, stock_item: stockItem }
+    return { order, stock_item: updatedStock }
   })
 
   try {
