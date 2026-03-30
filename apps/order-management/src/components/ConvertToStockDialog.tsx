@@ -98,7 +98,7 @@ export function ConvertToStockDialog({ order, open, onClose }: ConvertToStockDia
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose() }} modal={false}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg" onInteractOutside={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle>Convertir a Stock</DialogTitle>
           <DialogDescription>

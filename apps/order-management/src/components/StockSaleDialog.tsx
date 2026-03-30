@@ -110,7 +110,7 @@ export function StockSaleDialog({ open, onClose }: StockSaleDialogProps) {
     <>
       {open && <div className="fixed inset-0 z-50 bg-black/50 pointer-events-none supports-backdrop-filter:backdrop-blur-xs" aria-hidden />}
       <Dialog open={open} onOpenChange={(o) => { if (!o) onClose() }} modal={false}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg" onInteractOutside={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>Venta de Stock</DialogTitle>
             <DialogDescription>Vender un item del inventario a un cliente.</DialogDescription>

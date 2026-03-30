@@ -91,13 +91,13 @@ function App() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onSelect={() => { setTimeout(() => { setEditingOrder(null); setOrderFormOpen(true) }, 0) }}>
+                <DropdownMenuItem onSelect={() => { setEditingOrder(null); setOrderFormOpen(true) }}>
                   Pedido de Importación
                 </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => { setTimeout(() => setStockSaleOpen(true), 0) }}>
+                <DropdownMenuItem onSelect={() => setStockSaleOpen(true)}>
                   Venta de Stock
                 </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => { setTimeout(() => setInvestmentOpen(true), 0) }}>
+                <DropdownMenuItem onSelect={() => setInvestmentOpen(true)}>
                   Inversión de Stock
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -155,7 +155,7 @@ function App() {
       {/* Order Form Dialog (importación + edit) */}
       {orderFormOpen && <div className="fixed inset-0 z-50 bg-black/50 pointer-events-none supports-backdrop-filter:backdrop-blur-xs" aria-hidden />}
       <Dialog open={orderFormOpen} onOpenChange={(open) => { if (!open) handleFormCancel() }} modal={false}>
-        <DialogContent className="sm:max-w-5xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-5xl max-h-[90vh] overflow-y-auto" onInteractOutside={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>{editingOrder ? 'Editar Pedido' : 'Pedido de Importación'}</DialogTitle>
             <DialogDescription>
@@ -176,7 +176,7 @@ function App() {
       {/* Investment Dialog */}
       {investmentOpen && <div className="fixed inset-0 z-50 bg-black/50 pointer-events-none supports-backdrop-filter:backdrop-blur-xs" aria-hidden />}
       <Dialog open={investmentOpen} onOpenChange={(open) => { if (!open) setInvestmentOpen(false) }} modal={false}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto" onInteractOutside={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>Inversión de Stock</DialogTitle>
             <DialogDescription>Registrar una nueva compra para el inventario.</DialogDescription>
