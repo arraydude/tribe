@@ -91,13 +91,13 @@ function App() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => { setEditingOrder(null); setOrderFormOpen(true) }}>
+                <DropdownMenuItem onSelect={() => { setTimeout(() => { setEditingOrder(null); setOrderFormOpen(true) }, 0) }}>
                   Pedido de Importación
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setStockSaleOpen(true)}>
+                <DropdownMenuItem onSelect={() => { setTimeout(() => setStockSaleOpen(true), 0) }}>
                   Venta de Stock
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setInvestmentOpen(true)}>
+                <DropdownMenuItem onSelect={() => { setTimeout(() => setInvestmentOpen(true), 0) }}>
                   Inversión de Stock
                 </DropdownMenuItem>
               </DropdownMenuContent>
