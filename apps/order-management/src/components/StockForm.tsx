@@ -52,7 +52,7 @@ export function StockForm({ stockItem, onDone, onCancel }: StockFormProps) {
     item: stockItem?.item ?? '',
     variante: stockItem?.variante ?? '',
     cantidad_invertida: stockItem?.cantidad_invertida ?? 0,
-    cantidad_disponible: stockItem?.cantidad_disponible ?? 0,
+    cantidad_disponible: stockItem?.cantidad_disponible ?? 0, // auto-calc from status
     costo_por_unidad: stockItem?.costo_por_unidad ?? '',
     precio_lista: stockItem?.precio_lista ?? '',
     precio_taller: stockItem?.precio_taller ?? '',
@@ -157,7 +157,7 @@ export function StockForm({ stockItem, onDone, onCancel }: StockFormProps) {
       item: form.item.trim(),
       variante: form.variante.trim() || null,
       cantidad_invertida: Number(form.cantidad_invertida) || 0,
-      cantidad_disponible: Number(form.cantidad_disponible) || 0,
+      cantidad_disponible: form.status === 'EN TRANSITO' ? 0 : Number(form.cantidad_invertida) || 0,
       costo_por_unidad: effectiveCosto,
       precio_lista: effectiveVal('precio_lista'),
       precio_taller: effectiveVal('precio_taller'),
@@ -273,16 +273,6 @@ export function StockForm({ stockItem, onDone, onCancel }: StockFormProps) {
                 step="any"
                 value={form.cantidad_invertida}
                 onChange={(e) => set('cantidad_invertida', e.target.value)}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="cantidad_disponible">Cantidad Disponible</Label>
-              <Input
-                id="cantidad_disponible"
-                type="number"
-                step="any"
-                value={form.cantidad_disponible}
-                onChange={(e) => set('cantidad_disponible', e.target.value)}
               />
             </div>
           </div>
