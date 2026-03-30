@@ -89,6 +89,7 @@ orders.post('/', async (c) => {
     paid_to: body.paid_to ?? null,
     tracking: body.tracking ?? null,
     observaciones: body.observaciones ?? null,
+    stock_item_id: body.stock_item_id ?? null,
   })
 
   const created = queries.getOrder.get(Number(result.lastInsertRowid))
