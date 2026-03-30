@@ -7,16 +7,17 @@ Internal app for managing Tribe Shipping's orders and inventory.
 ```bash
 npm run dev          # Vite (5173) + API server (3456)
 npm run seed         # Seed DB from JSON
-npm test             # Correr tests (27 tests)
+npm test             # Correr tests (30 tests)
 npm run test:watch   # Tests en modo watch
 ```
 
 ## Tests
 
-27 tests de integración que cubren los flujos financieros críticos. Usan SQLite in-memory (cada test tiene su propia BD aislada, sin state compartido).
+30 tests de integración que cubren los flujos financieros críticos. Usan SQLite in-memory (cada test tiene su propia BD aislada, sin state compartido).
 
 - **Stock sell (6)**: transacción atómica (decrementa stock + crea order), rollback en insuficiente, validación de status DISPONIBLE, prevención de oversell, linkeo de stock_item_id
 - **Stock balance (6)**: cálculo inversión vs recuperado, exclusión de soft-deleted, balance positivo/negativo, items independientes
+- **Convert to stock (3)**: conversión de pedido de inversión a stock item, link bidireccional, cálculo de costo por unidad
 - **Quotation (9)**: tax 4%, envío $45/kg, márgenes (20/30/50%), redondeo a 2 decimales
 - **Orders (6)**: CRUD, resolución de cliente, soft delete, linkeo stock_item_id
 
@@ -43,19 +44,19 @@ Tribe compra partes a un proveedor para tener en stock. Esto se registra como un
 3. Una vez llega al país, se carga el **costo de envío** (costo de importación basado en peso)
 4. Este pedido aparece como **pérdida** en el seguimiento (se gastó plata sin vender nada todavía)
 
-### Fase 2: Registro en stock
+### Fase 2: Conversión a stock
 
-Una vez que el producto llega y se conoce el costo total real (compra + tax + envío), se registra en el inventario:
+Cuando el pedido de inversión llega (status RECEIVED BAIRES o DONE), aparece un botón **"→ Stock"** en la tabla de pedidos:
 
-1. Desde la vista **Stock**, se clickea **"+ Inversión"**
-2. Se carga: **Marca** + **Item** + **Variante** (ej: CTS / DOWNPIPE / B58)
-3. **Cantidad invertida** = unidades compradas
-4. **Costo por unidad** = costo total real / cantidad
-5. **Precios sugeridos** por tier se auto-calculan:
-   - Lista (~40% margen), Taller (~30%), EMI (~20%)
-   - Se pueden ajustar manualmente
+1. Se clickea **"→ Stock"** en el pedido de inversión
+2. Se abre un dialog pre-llenado con los costos del pedido
+3. Se completa: **Marca** + **Item** + **Variante** + **Cantidad**
+4. El **costo por unidad** se auto-calcula: (valor_compra + tax + costo_envio) / cantidad
+5. Los **precios por tier** se auto-calculan: Lista (×1.4), Taller (×1.3), EMI (×1.2)
+6. Al confirmar, se crea el stock item y se linkea bidireccionalmente con el pedido (el pedido recibe `stock_item_id`, el stock item recibe `investment_order_id`)
+7. En la tabla de pedidos, el pedido convertido muestra un badge **"STOCK"**
 
-La cantidad disponible arranca igual a la invertida.
+Un pedido solo se puede convertir una vez. Si ya fue convertido, no aparece el botón.
 
 ### Fase 3: Ventas desde stock
 
@@ -63,13 +64,35 @@ Cada venta crea un pedido nuevo con `is_stock = SI`:
 
 1. Desde cualquier vista, **"+ Nuevo"** → tab **"Venta de Stock"**
 2. Se selecciona el **cliente** (combobox con autocompletado)
-3. Se selecciona el **item del stock** (solo muestra items con disponibles > 0)
+3. Se selecciona el **item del stock** (solo muestra items con status DISPONIBLE y cantidad > 0)
 4. El precio se auto-llena según el tipo del cliente:
    - Cliente `standard` → Precio Lista
    - Cliente `taller` → Precio Taller
    - Cliente `emi` → Precio EMI
-5. Se crea el pedido y el stock se decrementa automáticamente en una transacción
+5. Se crea el pedido con `stock_item_id` linkeado y el stock se decrementa automáticamente en una transacción
 6. La ganancia de cada venta va compensando la pérdida de la inversión original
+
+### Balance por item
+
+El dashboard de stock muestra para cada item:
+- **Invertido**: cantidad_invertida × costo_por_unidad
+- **Recuperado**: suma de ganancia de todos los pedidos de venta vinculados
+- **Balance**: recuperado - invertido (rojo si negativo, normal si positivo)
+- **Ventas**: cantidad de pedidos de venta realizados
+
+El KPI **"Balance Total"** muestra la suma de todos los balances.
+
+### Estados del stock item
+
+```
+EN TRANSITO → RECIBIDO → DISPONIBLE
+```
+
+- **EN TRANSITO**: se compró, se cargó el costo de compra, se trackea
+- **RECIBIDO**: llegó al país, se carga costo de envío
+- **DISPONIBLE**: se calcularon precios por tier, listo para vender
+
+Solo se puede vender un item en estado DISPONIBLE.
 
 ### Tiers de precio por tipo de cliente
 
@@ -79,28 +102,6 @@ Cada venta crea un pedido nuevo con `is_stock = SI`:
 | `taller` (talleres partner) | Precio Taller | ~30% |
 | `emi` | Precio EMI | ~20% |
 | `internal` | Costo | 0% |
-
-### Inventario actual
-
-| Marca | Item | Variante | Disponible |
-|---|---|---|---|
-| CTS | DOWNPIPE | B58 | 8 |
-| CTS | DOWNPIPE | S58 | 1 |
-| Infinity Design | INTAKE | B58 G42 | 3 |
-| Infinity Design | INTAKE | S58 | 1 |
-| NGK | Bujias | B58/S58 | 6 |
-| Generica | Rejillas | M2 G87 | 4 |
-
-### Dashboard de stock
-
-Muestra KPIs: items en stock, unidades disponibles, valor invertido total, valor actual del stock. Tabla con todos los items, precios por tier, y acciones para editar.
-
-### Pendiente: link inversión → stock
-
-Actualmente la fase 1 (pedido de inversión) y la fase 2 (item de stock) no están conectados en la app. El pedido de inversión no sabe que generó un item de stock, y el item de stock no sabe de qué pedido vino. Falta:
-- Tipo de pedido "Inversión de Stock" (presupuestado=0, sin cliente, trackea la importación)
-- Conversión automática: cuando el pedido llega y se conoce el costo total, convertirlo en item de stock con un click
-- Link bidireccional: stock_item ↔ pedido de inversión
 
 ## Equipo
 
