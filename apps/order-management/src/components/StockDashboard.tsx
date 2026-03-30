@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
-import { useStockItems } from '@/hooks/useOrders'
-import type { StockItem } from '@/lib/api'
+import { useStockItems, useStockBalance } from '@/hooks/useOrders'
+import type { StockItem, StockBalance } from '@/lib/api'
 import { StockForm } from './StockForm'
 
 import {
@@ -25,7 +25,16 @@ import { DataTableColumnHeader } from '@/components/ui/data-table-column-header'
 const usd = (val: number | null) =>
   val != null ? `$${val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'
 
-function createStockColumns(onEdit: (item: StockItem) => void): ColumnDef<StockItem>[] {
+const statusBadgeVariant = (status: string): 'default' | 'secondary' | 'outline' => {
+  switch (status) {
+    case 'DISPONIBLE': return 'default'
+    case 'EN TRANSITO': return 'secondary'
+    case 'RECIBIDO': return 'outline'
+    default: return 'outline'
+  }
+}
+
+function createStockColumns(onEdit: (id: number) => void): ColumnDef<StockBalance>[] {
   return [
     {
       accessorKey: 'marca',
@@ -43,9 +52,13 @@ function createStockColumns(onEdit: (item: StockItem) => void): ColumnDef<StockI
       cell: ({ row }) => <span className="text-sm text-muted-foreground">{row.original.variante ?? '—'}</span>,
     },
     {
-      accessorKey: 'cantidad_invertida',
-      header: 'Invertido',
-      cell: ({ row }) => <span className="font-mono tabular-nums text-sm">{row.original.cantidad_invertida}</span>,
+      accessorKey: 'status',
+      header: 'Status',
+      cell: ({ row }) => (
+        <Badge variant={statusBadgeVariant(row.original.status)}>
+          {row.original.status}
+        </Badge>
+      ),
     },
     {
       accessorKey: 'cantidad_disponible',
@@ -57,29 +70,36 @@ function createStockColumns(onEdit: (item: StockItem) => void): ColumnDef<StockI
       ),
     },
     {
-      accessorKey: 'costo_por_unidad',
-      header: 'Costo/U',
-      cell: ({ row }) => <span className="font-mono tabular-nums text-sm">{usd(row.original.costo_por_unidad)}</span>,
+      accessorKey: 'total_invertido',
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Invertido" />,
+      cell: ({ row }) => <span className="font-mono tabular-nums text-sm">{usd(row.original.total_invertido)}</span>,
     },
     {
-      accessorKey: 'precio_lista',
-      header: 'P. Lista',
-      cell: ({ row }) => <span className="font-mono tabular-nums text-sm">{usd(row.original.precio_lista)}</span>,
+      accessorKey: 'total_recuperado',
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Recuperado" />,
+      cell: ({ row }) => <span className="font-mono tabular-nums text-sm">{usd(row.original.total_recuperado)}</span>,
     },
     {
-      accessorKey: 'precio_taller',
-      header: 'P. Taller',
-      cell: ({ row }) => <span className="font-mono tabular-nums text-sm">{usd(row.original.precio_taller)}</span>,
+      accessorKey: 'balance',
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Balance" />,
+      cell: ({ row }) => {
+        const val = row.original.balance
+        return (
+          <span className={`font-mono tabular-nums font-semibold text-sm ${val < 0 ? 'text-destructive' : 'text-foreground'}`}>
+            {usd(val)}
+          </span>
+        )
+      },
     },
     {
-      accessorKey: 'precio_emi',
-      header: 'P. EMI',
-      cell: ({ row }) => <span className="font-mono tabular-nums text-sm">{usd(row.original.precio_emi)}</span>,
+      accessorKey: 'ventas_count',
+      header: 'Ventas',
+      cell: ({ row }) => <span className="font-mono tabular-nums text-sm">{row.original.ventas_count}</span>,
     },
     {
       id: 'actions',
       cell: ({ row }) => (
-        <Button variant="ghost" size="xs" onClick={() => onEdit(row.original)}>
+        <Button variant="ghost" size="xs" onClick={() => onEdit(row.original.id)}>
           Editar
         </Button>
       ),
@@ -88,24 +108,29 @@ function createStockColumns(onEdit: (item: StockItem) => void): ColumnDef<StockI
 }
 
 export function StockDashboard() {
-  const { data: items, isLoading } = useStockItems()
+  const { data: items, isLoading: itemsLoading } = useStockItems()
+  const { data: balanceData, isLoading: balanceLoading } = useStockBalance()
   const [formOpen, setFormOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<StockItem | null>(null)
 
-  const columns = useMemo(() => createStockColumns((item) => {
-    setEditingItem(item)
+  const columns = useMemo(() => createStockColumns((id) => {
+    const fullItem = items?.find((i) => i.id === id) ?? null
+    setEditingItem(fullItem)
     setFormOpen(true)
-  }), [])
+  }), [items])
 
   const kpis = useMemo(() => {
-    if (!items) return { inStock: 0, unitsAvailable: 0, invested: 0, stockValue: 0 }
+    if (!balanceData) return { inStock: 0, unitsAvailable: 0, invested: 0, stockValue: 0, balanceTotal: 0 }
     return {
-      inStock: items.filter((i) => i.cantidad_disponible > 0).length,
-      unitsAvailable: items.reduce((sum, i) => sum + i.cantidad_disponible, 0),
-      invested: items.reduce((sum, i) => sum + i.cantidad_invertida * i.costo_por_unidad, 0),
-      stockValue: items.reduce((sum, i) => sum + i.cantidad_disponible * i.costo_por_unidad, 0),
+      inStock: balanceData.filter((i) => i.cantidad_disponible > 0).length,
+      unitsAvailable: balanceData.reduce((sum, i) => sum + i.cantidad_disponible, 0),
+      invested: balanceData.reduce((sum, i) => sum + i.total_invertido, 0),
+      stockValue: balanceData.reduce((sum, i) => sum + i.cantidad_disponible * i.costo_por_unidad, 0),
+      balanceTotal: balanceData.reduce((sum, i) => sum + i.balance, 0),
     }
-  }, [items])
+  }, [balanceData])
+
+  const isLoading = itemsLoading || balanceLoading
 
   if (isLoading) {
     return <p className="text-muted-foreground text-sm text-center py-20">Cargando stock...</p>
@@ -118,11 +143,11 @@ export function StockDashboard() {
           Inventario de Stock
         </h2>
         <Button size="sm" onClick={() => { setEditingItem(null); setFormOpen(true) }}>
-          + Inversión
+          + Inversion
         </Button>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <Card size="sm">
           <CardHeader>
             <CardDescription>Items en Stock</CardDescription>
@@ -147,11 +172,19 @@ export function StockDashboard() {
             <CardTitle className="font-mono tabular-nums text-xl">{usd(kpis.stockValue)}</CardTitle>
           </CardHeader>
         </Card>
+        <Card size="sm">
+          <CardHeader>
+            <CardDescription>Balance Total</CardDescription>
+            <CardTitle className={`font-mono tabular-nums text-xl ${kpis.balanceTotal < 0 ? 'text-destructive' : 'text-foreground'}`}>
+              {usd(kpis.balanceTotal)}
+            </CardTitle>
+          </CardHeader>
+        </Card>
       </div>
 
       <DataTable
         columns={columns}
-        data={items ?? []}
+        data={balanceData ?? []}
         searchKey="marca"
         searchPlaceholder="Buscar por marca..."
       />
@@ -159,9 +192,9 @@ export function StockDashboard() {
       <Dialog open={formOpen} onOpenChange={(open) => { if (!open) { setEditingItem(null); setFormOpen(false) } }}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editingItem ? 'Editar Item de Stock' : 'Nueva Inversión'}</DialogTitle>
+            <DialogTitle>{editingItem ? 'Editar Item de Stock' : 'Nueva Inversion'}</DialogTitle>
             <DialogDescription>
-              {editingItem ? 'Modificar los datos del item de stock.' : 'Registrar una nueva inversión de stock.'}
+              {editingItem ? 'Modificar los datos del item de stock.' : 'Registrar una nueva inversion de stock.'}
             </DialogDescription>
           </DialogHeader>
           <StockForm

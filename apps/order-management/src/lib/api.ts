@@ -35,6 +35,7 @@ export interface OrderRow {
   paid_to: string | null
   tracking: string | null
   observaciones: string | null
+  stock_item_id: number | null
   created_at: string
   updated_at: string
 }
@@ -92,8 +93,30 @@ export interface StockItem {
   precio_lista: number | null
   precio_taller: number | null
   precio_emi: number | null
+  status: string
+  tracking: string | null
+  fecha_compra: string | null
+  fecha_llegada: string | null
+  valor_compra_total: number | null
+  tax: number | null
+  costo_envio: number | null
   created_at: string
   updated_at: string
+}
+
+export interface StockBalance {
+  id: number
+  marca: string
+  item: string
+  variante: string | null
+  cantidad_invertida: number
+  cantidad_disponible: number
+  costo_por_unidad: number
+  status: string
+  total_invertido: number
+  total_recuperado: number
+  balance: number
+  ventas_count: number
 }
 
 export function getStockPrice(item: StockItem, clientType: string): number | null {
@@ -146,6 +169,7 @@ export const api = {
   },
   stock: {
     list: () => request<StockItem[]>('/stock'),
+    balance: () => request<StockBalance[]>('/stock/balance'),
     get: (id: number) => request<StockItem>(`/stock/${id}`),
     create: (data: Record<string, unknown>) =>
       request<StockItem>('/stock', { method: 'POST', body: JSON.stringify(data) }),

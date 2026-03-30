@@ -84,6 +84,14 @@ export function useStockItems() {
   })
 }
 
+export function useStockBalance() {
+  return useQuery({
+    queryKey: [...queryKeys.stock.all, 'balance'] as const,
+    queryFn: () => api.stock.balance(),
+    staleTime: STALE_TIME.stock,
+  })
+}
+
 export function useCreateStockItem() {
   const qc = useQueryClient()
   return useMutation({

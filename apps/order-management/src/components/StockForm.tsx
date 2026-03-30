@@ -8,6 +8,13 @@ import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 interface StockFormProps {
   stockItem: StockItem | null
@@ -17,6 +24,8 @@ interface StockFormProps {
 
 const CALC_FIELDS = ['precio_lista', 'precio_taller', 'precio_emi'] as const
 type CalcField = (typeof CALC_FIELDS)[number]
+
+const STATUS_OPTIONS = ['EN TRANSITO', 'RECIBIDO', 'DISPONIBLE'] as const
 
 function round2(n: number) {
   return Math.round(n * 100) / 100
@@ -35,6 +44,13 @@ export function StockForm({ stockItem, onDone, onCancel }: StockFormProps) {
     precio_lista: stockItem?.precio_lista ?? '',
     precio_taller: stockItem?.precio_taller ?? '',
     precio_emi: stockItem?.precio_emi ?? '',
+    status: stockItem?.status ?? 'DISPONIBLE',
+    tracking: stockItem?.tracking ?? '',
+    fecha_compra: stockItem?.fecha_compra ?? '',
+    fecha_llegada: stockItem?.fecha_llegada ?? '',
+    valor_compra_total: stockItem?.valor_compra_total ?? '',
+    tax: stockItem?.tax ?? '',
+    costo_envio: stockItem?.costo_envio ?? '',
   })
 
   const [overrides, setOverrides] = useState<Set<CalcField>>(() => {
@@ -46,18 +62,36 @@ export function StockForm({ stockItem, onDone, onCancel }: StockFormProps) {
     return s
   })
 
+  const [costoOverride, setCostoOverride] = useState(false)
+
   const [error, setError] = useState('')
   const createMutation = useCreateStockItem()
   const updateMutation = useUpdateStockItem()
 
+  const costoPorUnidadAuto = useMemo(() => {
+    const total = Number(form.valor_compra_total) || 0
+    const taxVal = Number(form.tax) || 0
+    const envio = Number(form.costo_envio) || 0
+    const qty = Number(form.cantidad_invertida) || 0
+    if (qty <= 0) return null
+    const sum = total + taxVal + envio
+    if (sum <= 0) return null
+    return round2(sum / qty)
+  }, [form.valor_compra_total, form.tax, form.costo_envio, form.cantidad_invertida])
+
+  const effectiveCosto = useMemo(() => {
+    if (costoOverride) return Number(form.costo_por_unidad) || 0
+    return costoPorUnidadAuto ?? (Number(form.costo_por_unidad) || 0)
+  }, [costoOverride, form.costo_por_unidad, costoPorUnidadAuto])
+
   const calc = useMemo(() => {
-    const costo = Number(form.costo_por_unidad) || 0
+    const costo = effectiveCosto
     return {
       precio_lista: costo ? round2(costo * 1.4) : null,
       precio_taller: costo ? round2(costo * 1.3) : null,
       precio_emi: costo ? round2(costo * 1.2) : null,
     }
-  }, [form.costo_por_unidad])
+  }, [effectiveCosto])
 
   const getCalcValue = (field: CalcField): string | number => {
     if (overrides.has(field)) return form[field]
@@ -72,6 +106,9 @@ export function StockForm({ stockItem, onDone, onCancel }: StockFormProps) {
     if ((CALC_FIELDS as readonly string[]).includes(key)) {
       setOverrides((s) => new Set(s).add(key as CalcField))
     }
+    if (key === 'costo_por_unidad') {
+      setCostoOverride(true)
+    }
   }
 
   const resetCalcField = (field: CalcField) => {
@@ -81,6 +118,11 @@ export function StockForm({ stockItem, onDone, onCancel }: StockFormProps) {
       return next
     })
     setForm((f) => ({ ...f, [field]: '' }))
+  }
+
+  const resetCostoOverride = () => {
+    setCostoOverride(false)
+    setForm((f) => ({ ...f, costo_por_unidad: '' }))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -103,11 +145,19 @@ export function StockForm({ stockItem, onDone, onCancel }: StockFormProps) {
       variante: form.variante.trim() || null,
       cantidad_invertida: Number(form.cantidad_invertida) || 0,
       cantidad_disponible: Number(form.cantidad_disponible) || 0,
-      costo_por_unidad:
-        form.costo_por_unidad !== '' ? Number(form.costo_por_unidad) : 0,
+      costo_por_unidad: effectiveCosto,
       precio_lista: effectiveVal('precio_lista'),
       precio_taller: effectiveVal('precio_taller'),
       precio_emi: effectiveVal('precio_emi'),
+      status: form.status,
+      tracking: form.tracking.trim() || null,
+      fecha_compra: form.fecha_compra || null,
+      fecha_llegada: form.fecha_llegada || null,
+      valor_compra_total:
+        form.valor_compra_total !== '' ? Number(form.valor_compra_total) : null,
+      tax: form.tax !== '' ? Number(form.tax) : null,
+      costo_envio:
+        form.costo_envio !== '' ? Number(form.costo_envio) : null,
     }
 
     try {
@@ -125,6 +175,8 @@ export function StockForm({ stockItem, onDone, onCancel }: StockFormProps) {
   }
 
   const isPending = createMutation.isPending || updateMutation.isPending
+
+  const isCostoAutoActive = !costoOverride && costoPorUnidadAuto != null
 
   return (
     <form onSubmit={handleSubmit}>
@@ -186,11 +238,11 @@ export function StockForm({ stockItem, onDone, onCancel }: StockFormProps) {
         <div>
           <h2 className="text-foreground font-semibold">Inventario</h2>
           <p className="text-muted-foreground mt-1 text-sm">
-            Cantidades y costo unitario de la inversión.
+            Cantidades invertidas y disponibles.
           </p>
         </div>
         <div className="md:col-span-2">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
               <Label htmlFor="cantidad_invertida">Cantidad Invertida</Label>
               <Input
@@ -211,15 +263,155 @@ export function StockForm({ stockItem, onDone, onCancel }: StockFormProps) {
                 onChange={(e) => set('cantidad_disponible', e.target.value)}
               />
             </div>
+          </div>
+        </div>
+      </div>
+
+      <Separator className="my-8" />
+
+      {/* Importacion */}
+      <div className="grid grid-cols-1 gap-10 md:grid-cols-3">
+        <div>
+          <h2 className="text-foreground font-semibold">Importaci&oacute;n</h2>
+          <p className="text-muted-foreground mt-1 text-sm">
+            Estado, tracking y fechas de la importaci&oacute;n.
+          </p>
+        </div>
+        <div className="md:col-span-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="grid gap-2">
-              <Label htmlFor="costo_por_unidad">Costo por Unidad USD</Label>
+              <Label htmlFor="status">Status</Label>
+              <Select
+                value={form.status}
+                onValueChange={(v) => set('status', v)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Seleccionar status" />
+                </SelectTrigger>
+                <SelectContent>
+                  {STATUS_OPTIONS.map((opt) => (
+                    <SelectItem key={opt} value={opt}>
+                      {opt}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2 sm:col-span-2">
+              <Label htmlFor="tracking">Tracking</Label>
+              <Input
+                id="tracking"
+                value={form.tracking}
+                onChange={(e) => set('tracking', e.target.value)}
+                placeholder="Ej: 1Z999AA10123456784"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="fecha_compra">Fecha Compra</Label>
+              <Input
+                id="fecha_compra"
+                type="date"
+                value={form.fecha_compra}
+                onChange={(e) => set('fecha_compra', e.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="fecha_llegada">Fecha Llegada</Label>
+              <Input
+                id="fecha_llegada"
+                type="date"
+                value={form.fecha_llegada}
+                onChange={(e) => set('fecha_llegada', e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <Separator className="my-8" />
+
+      {/* Costos de Importacion */}
+      <div className="grid grid-cols-1 gap-10 md:grid-cols-3">
+        <div>
+          <h2 className="text-foreground font-semibold">
+            Costos de Importaci&oacute;n
+          </h2>
+          <p className="text-muted-foreground mt-1 text-sm">
+            Valor de compra, impuestos y env&iacute;o. El costo por unidad se
+            calcula autom&aacute;ticamente.
+          </p>
+        </div>
+        <div className="md:col-span-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="grid gap-2">
+              <Label htmlFor="valor_compra_total">Valor Compra Total</Label>
+              <Input
+                id="valor_compra_total"
+                type="number"
+                step="any"
+                value={form.valor_compra_total}
+                onChange={(e) => set('valor_compra_total', e.target.value)}
+                placeholder="USD"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="tax">Tax</Label>
+              <Input
+                id="tax"
+                type="number"
+                step="any"
+                value={form.tax}
+                onChange={(e) => set('tax', e.target.value)}
+                placeholder="USD"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="costo_envio">Costo Env&iacute;o</Label>
+              <Input
+                id="costo_envio"
+                type="number"
+                step="any"
+                value={form.costo_envio}
+                onChange={(e) => set('costo_envio', e.target.value)}
+                placeholder="USD"
+              />
+            </div>
+            <div className="grid gap-2 sm:col-span-3">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="costo_por_unidad">Costo por Unidad USD</Label>
+                {isCostoAutoActive && (
+                  <Badge variant="secondary">auto</Badge>
+                )}
+                {costoOverride && String(form.costo_por_unidad) !== '' && (
+                  <button
+                    type="button"
+                    onClick={resetCostoOverride}
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    ↺ auto
+                  </button>
+                )}
+              </div>
               <Input
                 id="costo_por_unidad"
                 type="number"
                 step="any"
-                value={form.costo_por_unidad}
+                value={
+                  costoOverride
+                    ? form.costo_por_unidad
+                    : costoPorUnidadAuto ?? form.costo_por_unidad
+                }
                 onChange={(e) => set('costo_por_unidad', e.target.value)}
+                className={cn(isCostoAutoActive && 'border-ring/30 bg-accent')}
               />
+              {isCostoAutoActive && (
+                <p className="text-xs text-muted-foreground">
+                  ({Number(form.valor_compra_total) || 0} +{' '}
+                  {Number(form.tax) || 0} + {Number(form.costo_envio) || 0}) /{' '}
+                  {Number(form.cantidad_invertida) || 0} ={' '}
+                  {costoPorUnidadAuto}
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -232,8 +424,8 @@ export function StockForm({ stockItem, onDone, onCancel }: StockFormProps) {
         <div>
           <h2 className="text-foreground font-semibold">Precios Sugeridos</h2>
           <p className="text-muted-foreground mt-1 text-sm">
-            Calculados automáticamente desde el costo unitario. Podés
-            sobreescribirlos manualmente.
+            Calculados autom&aacute;ticamente desde el costo unitario.
+            Pod&eacute;s sobreescribirlos manualmente.
           </p>
         </div>
         <div className="md:col-span-2">

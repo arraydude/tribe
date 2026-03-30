@@ -82,11 +82,19 @@ db.exec(`
   );
 `)
 
-// Add stock_item_id to orders if missing (migration guard)
-try {
-  db.exec('ALTER TABLE orders ADD COLUMN stock_item_id INTEGER REFERENCES stock_items(id)')
-} catch {
-  // column already exists
+// Migrations (column guards)
+const migrations = [
+  'ALTER TABLE orders ADD COLUMN stock_item_id INTEGER REFERENCES stock_items(id)',
+  "ALTER TABLE stock_items ADD COLUMN status TEXT DEFAULT 'DISPONIBLE'",
+  'ALTER TABLE stock_items ADD COLUMN tracking TEXT',
+  'ALTER TABLE stock_items ADD COLUMN fecha_compra TEXT',
+  'ALTER TABLE stock_items ADD COLUMN fecha_llegada TEXT',
+  'ALTER TABLE stock_items ADD COLUMN valor_compra_total REAL',
+  'ALTER TABLE stock_items ADD COLUMN tax REAL',
+  'ALTER TABLE stock_items ADD COLUMN costo_envio REAL',
+]
+for (const sql of migrations) {
+  try { db.exec(sql) } catch { /* column already exists */ }
 }
 
 // Prepared statements
@@ -95,8 +103,12 @@ export const queries = {
   listStockItems: db.prepare('SELECT * FROM stock_items ORDER BY marca, item, variante'),
   getStockItem: db.prepare('SELECT * FROM stock_items WHERE id = ?'),
   insertStockItem: db.prepare(`
-    INSERT INTO stock_items (marca, item, variante, cantidad_invertida, cantidad_disponible, costo_por_unidad, precio_lista, precio_taller, precio_emi)
-    VALUES (@marca, @item, @variante, @cantidad_invertida, @cantidad_disponible, @costo_por_unidad, @precio_lista, @precio_taller, @precio_emi)
+    INSERT INTO stock_items (marca, item, variante, cantidad_invertida, cantidad_disponible, costo_por_unidad,
+      precio_lista, precio_taller, precio_emi, status, tracking, fecha_compra, fecha_llegada,
+      valor_compra_total, tax, costo_envio)
+    VALUES (@marca, @item, @variante, @cantidad_invertida, @cantidad_disponible, @costo_por_unidad,
+      @precio_lista, @precio_taller, @precio_emi, @status, @tracking, @fecha_compra, @fecha_llegada,
+      @valor_compra_total, @tax, @costo_envio)
   `),
   updateStockItem: db.prepare(`
     UPDATE stock_items SET
@@ -104,6 +116,9 @@ export const queries = {
       cantidad_invertida = @cantidad_invertida, cantidad_disponible = @cantidad_disponible,
       costo_por_unidad = @costo_por_unidad, precio_lista = @precio_lista,
       precio_taller = @precio_taller, precio_emi = @precio_emi,
+      status = @status, tracking = @tracking, fecha_compra = @fecha_compra,
+      fecha_llegada = @fecha_llegada, valor_compra_total = @valor_compra_total,
+      tax = @tax, costo_envio = @costo_envio,
       updated_at = datetime('now')
     WHERE id = @id
   `),
@@ -118,6 +133,20 @@ export const queries = {
       cantidad_disponible = cantidad_disponible + @qty,
       updated_at = datetime('now')
     WHERE id = @id
+  `),
+
+  stockBalance: db.prepare(`
+    SELECT
+      si.id, si.marca, si.item, si.variante,
+      si.cantidad_invertida, si.cantidad_disponible, si.costo_por_unidad, si.status,
+      (si.cantidad_invertida * si.costo_por_unidad) as total_invertido,
+      COALESCE(SUM(o.ganancia), 0) as total_recuperado,
+      COALESCE(SUM(o.ganancia), 0) - (si.cantidad_invertida * si.costo_por_unidad) as balance,
+      COUNT(o.id) as ventas_count
+    FROM stock_items si
+    LEFT JOIN orders o ON o.stock_item_id = si.id AND o.deleted_at IS NULL
+    GROUP BY si.id
+    ORDER BY si.marca, si.item
   `),
 
   // Team members
@@ -150,12 +179,12 @@ export const queries = {
       client_id, item, cantidad, link_compra, valor_presupuestado,
       fecha_compra, valor_compra, valor_debitado, tax, costo_envio,
       peso, status, is_stock, is_paid, asignado, ganancia,
-      paid_to, tracking, observaciones
+      paid_to, tracking, observaciones, stock_item_id
     ) VALUES (
       @client_id, @item, @cantidad, @link_compra, @valor_presupuestado,
       @fecha_compra, @valor_compra, @valor_debitado, @tax, @costo_envio,
       @peso, @status, @is_stock, @is_paid, @asignado, @ganancia,
-      @paid_to, @tracking, @observaciones
+      @paid_to, @tracking, @observaciones, @stock_item_id
     )
   `),
 

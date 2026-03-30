@@ -9,6 +9,12 @@ stock.get('/', (c) => {
   return c.json(items)
 })
 
+// Balance por item (inversión vs recuperado)
+stock.get('/balance', (c) => {
+  const balance = queries.stockBalance.all()
+  return c.json(balance)
+})
+
 // Get single stock item
 stock.get('/:id', (c) => {
   const item = queries.getStockItem.get(Number(c.req.param('id')))
@@ -35,6 +41,13 @@ stock.post('/', async (c) => {
     precio_lista: precio_lista != null ? Number(precio_lista) : null,
     precio_taller: precio_taller != null ? Number(precio_taller) : null,
     precio_emi: precio_emi != null ? Number(precio_emi) : null,
+    status: body.status || 'DISPONIBLE',
+    tracking: body.tracking || null,
+    fecha_compra: body.fecha_compra || null,
+    fecha_llegada: body.fecha_llegada || null,
+    valor_compra_total: body.valor_compra_total != null ? Number(body.valor_compra_total) : null,
+    tax: body.tax != null ? Number(body.tax) : null,
+    costo_envio: body.costo_envio != null ? Number(body.costo_envio) : null,
   })
 
   const created = queries.getStockItem.get(result.lastInsertRowid)
@@ -61,6 +74,13 @@ stock.put('/:id', async (c) => {
     precio_lista: body.precio_lista !== undefined ? (body.precio_lista != null ? Number(body.precio_lista) : null) : ex.precio_lista,
     precio_taller: body.precio_taller !== undefined ? (body.precio_taller != null ? Number(body.precio_taller) : null) : ex.precio_taller,
     precio_emi: body.precio_emi !== undefined ? (body.precio_emi != null ? Number(body.precio_emi) : null) : ex.precio_emi,
+    status: body.status ?? ex.status,
+    tracking: body.tracking !== undefined ? body.tracking || null : ex.tracking,
+    fecha_compra: body.fecha_compra !== undefined ? body.fecha_compra || null : ex.fecha_compra,
+    fecha_llegada: body.fecha_llegada !== undefined ? body.fecha_llegada || null : ex.fecha_llegada,
+    valor_compra_total: body.valor_compra_total !== undefined ? (body.valor_compra_total != null ? Number(body.valor_compra_total) : null) : ex.valor_compra_total,
+    tax: body.tax !== undefined ? (body.tax != null ? Number(body.tax) : null) : ex.tax,
+    costo_envio: body.costo_envio !== undefined ? (body.costo_envio != null ? Number(body.costo_envio) : null) : ex.costo_envio,
   })
 
   const updated = queries.getStockItem.get(id)
@@ -75,6 +95,11 @@ stock.post('/:id/sell', async (c) => {
 
   if (!qty || qty < 1) return c.json({ error: 'qty must be >= 1' }, 400)
   if (!order_data) return c.json({ error: 'order_data is required' }, 400)
+
+  // Validate stock item is available for sale
+  const stockItem = queries.getStockItem.get(stockId) as Record<string, unknown> | undefined
+  if (!stockItem) return c.json({ error: 'Stock item not found' }, 404)
+  if (stockItem.status !== 'DISPONIBLE') return c.json({ error: 'Stock item not available for sale (status: ' + stockItem.status + ')' }, 409)
 
   const sellTransaction = db.transaction(() => {
     // Decrement stock
@@ -120,6 +145,7 @@ stock.post('/:id/sell', async (c) => {
       paid_to: order_data.paid_to || null,
       tracking: null,
       observaciones: order_data.observaciones || null,
+      stock_item_id: stockId,
     })
 
     const order = queries.getOrder.get(Number(orderResult.lastInsertRowid))
