@@ -21,28 +21,46 @@ Tribe vende de su inventario pre-comprado. El costo de compra es 0 (ya se invirt
 
 ## Flujo de Stock e Inventario
 
-### 1. Inversión (compra de stock)
+El ciclo de vida completo de un item de stock tiene 3 fases:
 
-Desde la vista **Stock**, se clickea **"+ Inversión"** para registrar una compra de partes. Se carga:
-- **Marca** + **Item** + **Variante** (ej: CTS / DOWNPIPE / B58)
-- **Cantidad invertida** (cuántas unidades se compraron)
-- **Costo por unidad** en USD
-- **Precios sugeridos** por tier: Lista (~40% margen), Taller (~30%), EMI (~20%) — se auto-calculan desde el costo pero se pueden ajustar manualmente
+### Fase 1: Compra e importación (pedido de inversión)
+
+Tribe compra partes a un proveedor para tener en stock. Esto se registra como un pedido de importación con **valor presupuestado = 0** (no hay cliente, es una inversión propia):
+
+1. Se crea el pedido con los costos conocidos: **valor de compra** + **valor debitado** (1%) + **tax** (4%)
+2. Se trackea el estado de la importación cambiando el **Item Status** (TO DO → IN PROGRESS → RECEIVED BAIRES → DONE) y actualizando el **tracking**
+3. Una vez llega al país, se carga el **costo de envío** (costo de importación basado en peso)
+4. Este pedido aparece como **pérdida** en el seguimiento (se gastó plata sin vender nada todavía)
+
+### Fase 2: Registro en stock
+
+Una vez que el producto llega y se conoce el costo total real (compra + tax + envío), se registra en el inventario:
+
+1. Desde la vista **Stock**, se clickea **"+ Inversión"**
+2. Se carga: **Marca** + **Item** + **Variante** (ej: CTS / DOWNPIPE / B58)
+3. **Cantidad invertida** = unidades compradas
+4. **Costo por unidad** = costo total real / cantidad
+5. **Precios sugeridos** por tier se auto-calculan:
+   - Lista (~40% margen), Taller (~30%), EMI (~20%)
+   - Se pueden ajustar manualmente
 
 La cantidad disponible arranca igual a la invertida.
 
-### 2. Venta desde stock
+### Fase 3: Ventas desde stock
 
-Desde cualquier vista, se clickea **"+ Nuevo"** y se elige **"Venta de Stock"**:
-1. Se selecciona el **cliente** (combobox con autocompletado)
-2. Se selecciona el **item del stock** (solo muestra items con disponibles > 0)
-3. El precio se auto-llena según el tipo del cliente:
+Cada venta crea un pedido nuevo con `is_stock = SI`:
+
+1. Desde cualquier vista, **"+ Nuevo"** → tab **"Venta de Stock"**
+2. Se selecciona el **cliente** (combobox con autocompletado)
+3. Se selecciona el **item del stock** (solo muestra items con disponibles > 0)
+4. El precio se auto-llena según el tipo del cliente:
    - Cliente `standard` → Precio Lista
    - Cliente `taller` → Precio Taller
    - Cliente `emi` → Precio EMI
-4. Se crea el pedido y el stock se decrementa automáticamente en una transacción
+5. Se crea el pedido y el stock se decrementa automáticamente en una transacción
+6. La ganancia de cada venta va compensando la pérdida de la inversión original
 
-### 3. Tiers de precio por tipo de cliente
+### Tiers de precio por tipo de cliente
 
 | Tipo de cliente | Tier | Margen aprox. |
 |---|---|---|
@@ -51,7 +69,7 @@ Desde cualquier vista, se clickea **"+ Nuevo"** y se elige **"Venta de Stock"**:
 | `emi` | Precio EMI | ~20% |
 | `internal` | Costo | 0% |
 
-### 4. Inventario actual
+### Inventario actual
 
 | Marca | Item | Variante | Disponible |
 |---|---|---|---|
@@ -62,9 +80,16 @@ Desde cualquier vista, se clickea **"+ Nuevo"** y se elige **"Venta de Stock"**:
 | NGK | Bujias | B58/S58 | 6 |
 | Generica | Rejillas | M2 G87 | 4 |
 
-### 5. Dashboard de stock
+### Dashboard de stock
 
 Muestra KPIs: items en stock, unidades disponibles, valor invertido total, valor actual del stock. Tabla con todos los items, precios por tier, y acciones para editar.
+
+### Pendiente: link inversión → stock
+
+Actualmente la fase 1 (pedido de inversión) y la fase 2 (item de stock) no están conectados en la app. El pedido de inversión no sabe que generó un item de stock, y el item de stock no sabe de qué pedido vino. Falta:
+- Tipo de pedido "Inversión de Stock" (presupuestado=0, sin cliente, trackea la importación)
+- Conversión automática: cuando el pedido llega y se conoce el costo total, convertirlo en item de stock con un click
+- Link bidireccional: stock_item ↔ pedido de inversión
 
 ## Equipo
 
