@@ -189,7 +189,10 @@ export function StockDashboard() {
         searchPlaceholder="Buscar por marca..."
       />
 
-      <Dialog open={formOpen} onOpenChange={(open) => { if (!open) { setEditingItem(null); setFormOpen(false) } }}>
+      {formOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 pointer-events-none supports-backdrop-filter:backdrop-blur-xs" aria-hidden />
+      )}
+      <Dialog open={formOpen} onOpenChange={(open) => { if (!open) { setEditingItem(null); setFormOpen(false) } }} modal={false}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingItem ? 'Editar Item de Stock' : 'Nueva Inversion'}</DialogTitle>
