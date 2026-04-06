@@ -4,10 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently \"vite\" \"tsx watch server/index.ts\"",
+    "dev": "concurrently \"vite\" \"tsx watch server/index-v2.ts\"",
     "dev:client": "vite",
-    "dev:server": "tsx watch server/index.ts",
-    "seed": "tsx server/seed.ts",
+    "dev:server": "tsx watch server/index-v2.ts",
+    "seed": "tsx server/seed-v2.ts",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",

@@ -228,34 +228,73 @@ ordersV2.put('/:id', async (c) => {
     paidTo = body.paid_to
   }
 
-  queries.updateOrder.run({
-    id,
-    order_type: body.order_type ?? existing.order_type,
-    client_id: clientId,
-    tracking_status_id: statusId,
-    assigned_to: assignedTo,
-    item: body.item ?? existing.item,
-    quantity: body.quantity ?? existing.quantity,
-    purchase_link: body.purchase_link ?? existing.purchase_link,
-    weight: body.weight ?? existing.weight,
-    tracking_number: body.tracking_number ?? existing.tracking_number,
-    notes: body.notes ?? existing.notes,
-    cost: body.cost ?? existing.cost,
-    financing_cost: body.financing_cost ?? existing.financing_cost,
-    import_cost: body.import_cost ?? existing.import_cost,
-    quoted_price: body.quoted_price ?? existing.quoted_price,
-    margin_percent: body.margin_percent ?? existing.margin_percent,
-    profit: body.profit ?? existing.profit,
-    is_paid: body.is_paid !== undefined ? (body.is_paid ? 1 : 0) : existing.is_paid,
-    paid_to: paidTo,
-    paid_at: body.paid_at ?? existing.paid_at,
-    is_settled: body.is_settled !== undefined ? (body.is_settled ? 1 : 0) : existing.is_settled,
-    settled_at: body.settled_at ?? existing.settled_at,
-    stock_id: body.stock_id ?? existing.stock_id,
-    license_id: body.license_id ?? existing.license_id,
-    is_unlock: body.is_unlock !== undefined ? (body.is_unlock ? 1 : 0) : existing.is_unlock,
-    metadata: body.metadata ?? existing.metadata,
+  const finalOrderType = body.order_type ?? existing.order_type
+  const finalCost = body.cost ?? existing.cost
+  const finalFinancingCost = body.financing_cost ?? existing.financing_cost
+  const finalImportCost = body.import_cost ?? existing.import_cost
+  const finalQuantity = body.quantity ?? existing.quantity
+  const finalStockId = body.stock_id ?? existing.stock_id
+
+  const updateTx = db.transaction(() => {
+    queries.updateOrder.run({
+      id,
+      order_type: finalOrderType,
+      client_id: clientId,
+      tracking_status_id: statusId,
+      assigned_to: assignedTo,
+      item: body.item ?? existing.item,
+      quantity: finalQuantity,
+      purchase_link: body.purchase_link ?? existing.purchase_link,
+      weight: body.weight ?? existing.weight,
+      tracking_number: body.tracking_number ?? existing.tracking_number,
+      notes: body.notes ?? existing.notes,
+      cost: finalCost,
+      financing_cost: finalFinancingCost,
+      import_cost: finalImportCost,
+      quoted_price: body.quoted_price ?? existing.quoted_price,
+      margin_percent: body.margin_percent ?? existing.margin_percent,
+      profit: body.profit ?? existing.profit,
+      is_paid: body.is_paid !== undefined ? (body.is_paid ? 1 : 0) : existing.is_paid,
+      paid_to: paidTo,
+      paid_at: body.paid_at ?? existing.paid_at,
+      is_settled: body.is_settled !== undefined ? (body.is_settled ? 1 : 0) : existing.is_settled,
+      settled_at: body.settled_at ?? existing.settled_at,
+      stock_id: finalStockId,
+      license_id: body.license_id ?? existing.license_id,
+      is_unlock: body.is_unlock !== undefined ? (body.is_unlock ? 1 : 0) : existing.is_unlock,
+      metadata: body.metadata ?? existing.metadata,
+    })
+
+    // Auto-sync linked stock when investment order gets costs finalized
+    if (finalOrderType === 'inversion' && finalStockId && finalCost) {
+      const doneStatus = queries.getStatusByName.get('DONE') as { id: number } | undefined
+      const isDone = doneStatus && statusId === doneStatus.id
+
+      if (isDone) {
+        const cost = Number(finalCost) || 0
+        const financing = Number(finalFinancingCost) || 0
+        const importing = Number(finalImportCost) || 0
+        const qty = Number(finalQuantity) || 1
+        const costPerUnit = Math.round(((cost + financing + importing) / qty) * 100) / 100
+
+        const stockItem = queries.getStock.get(finalStockId) as Record<string, unknown> | undefined
+        if (stockItem) {
+          queries.updateStock.run({
+            id: finalStockId,
+            marca: stockItem.marca,
+            item: stockItem.item,
+            variante: stockItem.variante,
+            quantity: qty,
+            available: qty,
+            cost_per_unit: costPerUnit,
+            status: 'DISPONIBLE',
+          })
+        }
+      }
+    }
   })
+
+  updateTx()
 
   const updated = queries.getOrder.get(id)
   return c.json(updated)

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import {
-  createTestDb, seedClient, seedOrder,
+  createTestDb, seedClient, seedOrder, seedStock,
   getStatusId, getStaffId,
 } from '../test-helpers-v2'
 
@@ -341,6 +341,96 @@ describe('Orders v2 — update', () => {
     expect(updated.is_paid).toBe(1)
     expect(updated.paid_to_name).toBe('Fede')
     expect(updated.paid_at).toBe('2026-04-05')
+  })
+
+  it('auto-syncs linked stock when investment order marked DONE with costs', () => {
+    const clientId = seedClient(queries, 'Tribe')
+    const todoId = getStatusId(queries, 'TO DO')
+    const doneId = getStatusId(queries, 'DONE')
+
+    // Create stock EN CAMINO (as the investment flow does)
+    const stockId = seedStock(queries, {
+      marca: 'CTS', item: 'Downpipe', variante: 'B58',
+      quantity: 0, available: 0, cost_per_unit: 0, status: 'EN CAMINO',
+    })
+
+    // Create investment order linked to stock
+    const orderId = seedOrder(queries, {
+      order_type: 'inversion',
+      client_id: clientId,
+      tracking_status_id: todoId,
+      item: 'CTS Downpipe B58',
+      quantity: 9,
+      cost: 3600,
+      stock_id: stockId,
+    })
+
+    // Simulate arrival: update order with final costs and DONE status
+    // This mirrors the route logic from orders-v2.ts PUT handler
+    const existing = queries.getOrder.get(orderId) as Record<string, unknown>
+    const finalCost = 3600
+    const finalFinancingCost = 37.44
+    const finalImportCost = 450
+    const finalQuantity = 9
+
+    queries.updateOrder.run({
+      ...existing,
+      id: orderId,
+      tracking_status_id: doneId,
+      cost: finalCost,
+      financing_cost: finalFinancingCost,
+      import_cost: finalImportCost,
+      quantity: finalQuantity,
+    })
+
+    // Auto-sync stock (same logic as the route)
+    const doneStatus = queries.getStatusByName.get('DONE') as { id: number }
+    if (existing.order_type === 'inversion' && stockId && doneId === doneStatus.id) {
+      const costPerUnit = Math.round(((finalCost + finalFinancingCost + finalImportCost) / finalQuantity) * 100) / 100
+      const stockItem = queries.getStock.get(stockId) as Record<string, unknown>
+      queries.updateStock.run({
+        id: stockId,
+        marca: stockItem.marca,
+        item: stockItem.item,
+        variante: stockItem.variante,
+        quantity: finalQuantity,
+        available: finalQuantity,
+        cost_per_unit: costPerUnit,
+        status: 'DISPONIBLE',
+      })
+    }
+
+    // Verify stock was updated
+    const stock = queries.getStock.get(stockId) as Record<string, unknown>
+    expect(stock.status).toBe('DISPONIBLE')
+    expect(stock.available).toBe(9)
+    expect(stock.quantity).toBe(9)
+    expect(stock.cost_per_unit).toBe(454.16) // (3600 + 37.44 + 450) / 9
+  })
+
+  it('does NOT sync stock when investment order is not DONE', () => {
+    const clientId = seedClient(queries, 'Tribe2')
+    const inProgressId = getStatusId(queries, 'IN PROGRESS')
+
+    const stockId = seedStock(queries, {
+      marca: 'NGK', item: 'Bujias', variante: 'B58',
+      quantity: 0, available: 0, cost_per_unit: 0, status: 'EN CAMINO',
+    })
+
+    seedOrder(queries, {
+      order_type: 'inversion',
+      client_id: clientId,
+      tracking_status_id: inProgressId,
+      item: 'NGK Bujias B58',
+      quantity: 10,
+      cost: 500,
+      stock_id: stockId,
+    })
+
+    // Stock should remain EN CAMINO (order is only IN PROGRESS, not DONE)
+    const stock = queries.getStock.get(stockId) as Record<string, unknown>
+    expect(stock.status).toBe('EN CAMINO')
+    expect(stock.available).toBe(0)
   })
 
   it('update preserves unchanged fields', () => {

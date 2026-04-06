@@ -7,6 +7,9 @@ import { QuotationCalc } from '@/components/QuotationCalc'
 import { StockDashboard } from '@/components/StockDashboard'
 import { StockSaleDialog } from '@/components/StockSaleDialog'
 import { StockForm } from '@/components/StockForm'
+import { LicencesDashboard } from '@/components/LicencesDashboard'
+import { ExpensesDashboard } from '@/components/ExpensesDashboard'
+import { ClientsDashboard } from '@/components/ClientsDashboard'
 import type { OrderRow } from '@/lib/api'
 
 import { Button } from '@/components/ui/button'
@@ -20,7 +23,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Moon, Sun, Plus } from '@phosphor-icons/react'
 
-type View = 'dashboard' | 'orders' | 'stock' | 'quotation'
+type View = 'dashboard' | 'orders' | 'stock' | 'licences' | 'expenses' | 'clients' | 'quotation'
 
 function App() {
   const [view, setView] = useState<View>('dashboard')
@@ -68,7 +71,7 @@ function App() {
             <Separator orientation="vertical" className="hidden h-8 sm:block" />
 
             <nav className="hidden sm:flex items-center gap-1">
-              {(['dashboard', 'orders', 'stock', 'quotation'] as const).map((v) => (
+              {(['dashboard', 'orders', 'stock', 'licences', 'expenses', 'clients', 'quotation'] as const).map((v) => (
                 <Button
                   key={v}
                   variant={view === v ? 'secondary' : 'ghost'}
@@ -76,7 +79,7 @@ function App() {
                   onClick={() => setView(v)}
                   className="uppercase tracking-wider text-xs"
                 >
-                  {{ dashboard: 'Dashboard', orders: 'Pedidos', stock: 'Stock', quotation: 'Cotizador' }[v]}
+                  {{ dashboard: 'Dashboard', orders: 'Pedidos', stock: 'Stock', licences: 'Licencias', expenses: 'Gastos', clients: 'Clientes', quotation: 'Cotizador' }[v]}
                 </Button>
               ))}
             </nav>
@@ -141,6 +144,12 @@ function App() {
         )}
 
         {view === 'stock' && <StockDashboard />}
+
+        {view === 'licences' && <LicencesDashboard />}
+
+        {view === 'expenses' && <ExpensesDashboard />}
+
+        {view === 'clients' && <ClientsDashboard />}
 
         {view === 'quotation' && (
           <div>
