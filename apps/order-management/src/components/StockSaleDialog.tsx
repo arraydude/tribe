@@ -2,9 +2,9 @@ import { useMemo, useState, useEffect } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useClients, useTeamMembers, useStockItems, useSellStockItem } from '@/hooks/useOrders'
-import { getStockPrice, getStockDisplayName } from '@/lib/api'
-import type { StockItem } from '@/lib/api'
+import { useClients, useDealers, useStaff, useStockItems, useStockItem, useSellStockItem } from '@/hooks/useOrders'
+import { getStockDisplayName } from '@/lib/api'
+import type { StockPrice } from '@/lib/api'
 
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -28,21 +28,18 @@ interface StockSaleDialogProps {
   onClose: () => void
 }
 
-const TIERS = ['standard', 'taller', 'emi'] as const
-const TIER_LABELS: Record<string, string> = { standard: 'Lista', taller: 'Taller', emi: 'EMI' }
+const TIERS = ['lista', 'taller', 'emi'] as const
+const TIER_LABELS: Record<string, string> = { lista: 'Lista', taller: 'Taller', emi: 'EMI' }
 
-function getTierPrice(item: StockItem, tier: string): number | null {
-  switch (tier) {
-    case 'taller': return item.precio_taller
-    case 'emi': return item.precio_emi
-    default: return item.precio_lista
-  }
+function getTierPrice(prices: StockPrice[] | undefined, tierName: string): number | null {
+  const match = prices?.find((p) => p.tier_name === tierName)
+  return match ? match.price : null
 }
 
 const stockSaleSchema = z.object({
   cliente: z.string().min(1, 'Cliente es requerido'),
   stockItemId: z.string().min(1, 'Seleccioná un item de stock'),
-  tier: z.string().default('standard'),
+  tier: z.string().default('lista'),
   precio: z.string().min(1, 'Ingresá un precio'),
   cantidad: z.string().default('1'),
   asignado: z.string().min(1, 'Asignado es requerido'),
@@ -52,7 +49,8 @@ type FormValues = z.infer<typeof stockSaleSchema>
 
 export function StockSaleDialog({ open, onClose }: StockSaleDialogProps) {
   const { data: clients } = useClients()
-  const { data: teamMembers } = useTeamMembers()
+  const { data: dealers } = useDealers()
+  const { data: staff } = useStaff()
   const { data: stockItems } = useStockItems()
   const sellMutation = useSellStockItem()
 
@@ -61,7 +59,7 @@ export function StockSaleDialog({ open, onClose }: StockSaleDialogProps) {
     defaultValues: {
       cliente: '',
       stockItemId: '',
-      tier: 'standard',
+      tier: 'lista',
       precio: '',
       cantidad: '1',
       asignado: '',
@@ -71,7 +69,7 @@ export function StockSaleDialog({ open, onClose }: StockSaleDialogProps) {
   const [apiError, setApiError] = useState('')
 
   const clientNames = useMemo(() => (clients ?? []).map((c) => c.name), [clients])
-  const availableItems = useMemo(() => (stockItems ?? []).filter((s) => s.cantidad_disponible > 0 && s.status === 'DISPONIBLE'), [stockItems])
+  const availableItems = useMemo(() => (stockItems ?? []).filter((s) => s.available > 0 && s.status === 'DISPONIBLE'), [stockItems])
 
   const watchedCliente = watch('cliente')
   const watchedStockItemId = watch('stockItemId')
@@ -79,25 +77,34 @@ export function StockSaleDialog({ open, onClose }: StockSaleDialogProps) {
   const watchedPrecio = watch('precio')
   const watchedCantidad = watch('cantidad')
 
-  const selectedItem = stockItems?.find((s) => s.id === Number(watchedStockItemId))
+  const selectedItemId = watchedStockItemId ? Number(watchedStockItemId) : null
+  const { data: selectedItemDetail } = useStockItem(selectedItemId)
 
-  // Auto-select tier when client changes
+  // Fallback to list item for basic fields (display name, available count)
+  const selectedItemBasic = stockItems?.find((s) => s.id === selectedItemId)
+
+  // Use detail (with prices) when available, otherwise basic
+  const selectedItem = selectedItemDetail ?? selectedItemBasic
+
+  // Auto-select tier when client changes (via dealers lookup)
   useEffect(() => {
     if (!watchedCliente) return
-    const clientType = clients?.find((c) => c.name === watchedCliente)?.type
-    if (clientType && TIERS.includes(clientType as typeof TIERS[number])) {
-      setValue('tier', clientType)
+    const client = clients?.find((c) => c.name === watchedCliente)
+    if (!client) return
+    const dealer = dealers?.find((d) => d.client_id === client.id)
+    if (dealer?.tier_name && TIERS.includes(dealer.tier_name as typeof TIERS[number])) {
+      setValue('tier', dealer.tier_name)
     }
-  }, [watchedCliente, clients, setValue])
+  }, [watchedCliente, clients, dealers, setValue])
 
   // Auto-fill price when tier or item changes
   useEffect(() => {
-    if (!selectedItem) return
-    const p = getTierPrice(selectedItem, watchedTier)
+    if (!selectedItemDetail?.prices) return
+    const p = getTierPrice(selectedItemDetail.prices, watchedTier)
     if (p != null) setValue('precio', String(p))
-  }, [watchedTier, selectedItem, setValue])
+  }, [watchedTier, selectedItemDetail, setValue])
 
-  const costoPerUnit = selectedItem?.costo_por_unidad ?? 0
+  const costoPerUnit = selectedItem?.cost_per_unit ?? 0
   const qty = Number(watchedCantidad) || 1
   const precioNum = Number(watchedPrecio) || 0
   const ganancia = Math.round((precioNum - costoPerUnit * qty) * 100) / 100
@@ -108,19 +115,16 @@ export function StockSaleDialog({ open, onClose }: StockSaleDialogProps) {
     const qty = Number(data.cantidad) || 1
     const precioNum = Number(data.precio) || 0
 
+    // Resolve staff id from name
+    const staffMember = staff?.find((m) => m.name === data.asignado)
+
     try {
-      const item = stockItems?.find((s) => s.id === stockId)
       await sellMutation.mutateAsync({
         id: stockId,
         qty,
-        order_data: {
-          cliente: data.cliente.trim(),
-          item: item ? getStockDisplayName(item) : '',
-          valor_presupuestado: precioNum,
-          ganancia: Math.round((precioNum - (item?.costo_por_unidad ?? 0) * qty) * 100) / 100,
-          status: 'TO DO',
-          asignado: data.asignado || null,
-        },
+        cliente: data.cliente.trim(),
+        quoted_price: precioNum,
+        assigned_to: staffMember?.id ?? null,
       })
       reset()
       setApiError('')
@@ -131,6 +135,10 @@ export function StockSaleDialog({ open, onClose }: StockSaleDialogProps) {
   }
 
   const usd = (v: number) => `$${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
+  // Determine dealer info for description
+  const selectedClient = clients?.find((c) => c.name === watchedCliente)
+  const clientDealer = selectedClient ? dealers?.find((d) => d.client_id === selectedClient.id) : undefined
 
   return (
     <>
@@ -175,7 +183,7 @@ export function StockSaleDialog({ open, onClose }: StockSaleDialogProps) {
                   <Field data-invalid={!!errors.stockItemId}>
                     <FieldLabel>
                       Item de Stock <span className="text-destructive">*</span>
-                      {selectedItem && <Badge variant="secondary" className="ml-auto">{selectedItem.cantidad_disponible} disp.</Badge>}
+                      {selectedItem && <Badge variant="secondary" className="ml-auto">{selectedItem.available} disp.</Badge>}
                     </FieldLabel>
                     <Controller
                       control={control}
@@ -189,7 +197,7 @@ export function StockSaleDialog({ open, onClose }: StockSaleDialogProps) {
                             <SelectGroup>
                               {availableItems.map((si) => (
                                 <SelectItem key={si.id} value={si.id.toString()}>
-                                  {getStockDisplayName(si)} ({si.cantidad_disponible})
+                                  {getStockDisplayName(si)} ({si.available})
                                 </SelectItem>
                               ))}
                             </SelectGroup>
@@ -217,9 +225,9 @@ export function StockSaleDialog({ open, onClose }: StockSaleDialogProps) {
                           {TIERS.map((t) => (
                             <ToggleGroupItem key={t} value={t} className="flex-1">
                               {TIER_LABELS[t]}
-                              {selectedItem && (
+                              {selectedItemDetail?.prices && (
                                 <span className="ml-1 text-muted-foreground">
-                                  {usd(getTierPrice(selectedItem, t) ?? 0)}
+                                  {usd(getTierPrice(selectedItemDetail.prices, t) ?? 0)}
                                 </span>
                               )}
                             </ToggleGroupItem>
@@ -229,7 +237,7 @@ export function StockSaleDialog({ open, onClose }: StockSaleDialogProps) {
                     />
                     {watchedCliente && (
                       <FieldDescription>
-                        Auto-seleccionado: {TIER_LABELS[watchedTier]} (cliente tipo {clients?.find((c) => c.name === watchedCliente)?.type ?? 'standard'})
+                        Auto-seleccionado: {TIER_LABELS[watchedTier]} {clientDealer ? `(dealer: ${clientDealer.tier_name})` : '(cliente standard)'}
                       </FieldDescription>
                     )}
                   </Field>
@@ -271,7 +279,7 @@ export function StockSaleDialog({ open, onClose }: StockSaleDialogProps) {
                           <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
                           <SelectContent>
                             <SelectGroup>
-                              {(teamMembers ?? []).map((m) => (
+                              {(staff ?? []).map((m) => (
                                 <SelectItem key={m.id} value={m.name}>{m.name}</SelectItem>
                               ))}
                             </SelectGroup>

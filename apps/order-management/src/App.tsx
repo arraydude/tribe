@@ -182,7 +182,7 @@ function App() {
             <DialogDescription>Registrar una nueva compra para el inventario.</DialogDescription>
           </DialogHeader>
           <StockForm
-            item={null}
+            stockItem={null}
             onDone={() => setInvestmentOpen(false)}
             onCancel={() => setInvestmentOpen(false)}
           />

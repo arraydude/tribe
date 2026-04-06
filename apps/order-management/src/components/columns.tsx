@@ -11,24 +11,32 @@ const statusConfig: Record<string, { variant: 'default' | 'secondary' | 'outline
   'DONE': { variant: 'default' },
   'IN PROGRESS': { variant: 'secondary' },
   'TO DO': { variant: 'outline' },
+  'RECEIVED MIAMI': { variant: 'secondary' },
   'RECEIVED BAIRES': { variant: 'secondary' },
+  'READY TO DELIVER': { variant: 'default' },
+}
+
+const orderTypeConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive' }> = {
+  importacion: { label: 'IMPORT', variant: 'outline' },
+  inversion: { label: 'INVERSION', variant: 'secondary' },
+  venta_stock: { label: 'VENTA STOCK', variant: 'default' },
+  repro: { label: 'REPRO', variant: 'destructive' },
 }
 
 function canConvertToStock(order: OrderRow): boolean {
   return (
-    !order.stock_item_id &&
-    order.is_stock === 0 &&
-    (order.valor_presupuestado === 0 || order.valor_presupuestado === null) &&
-    (order.status === 'RECEIVED BAIRES' || order.status === 'DONE')
+    order.order_type === 'importacion' &&
+    !order.stock_id &&
+    (order.status_name === 'RECEIVED BAIRES' || order.status_name === 'DONE')
   )
 }
 
 export function createColumns(onEdit: (order: OrderRow) => void, onDelete: (order: OrderRow) => void, onConvertToStock?: (order: OrderRow) => void): ColumnDef<OrderRow>[] {
   return [
     {
-      accessorKey: 'cliente',
+      accessorKey: 'client_name',
       header: ({ column }) => <DataTableColumnHeader column={column} title="Cliente" />,
-      cell: ({ row }) => <span className="font-medium text-sm">{row.original.cliente ?? '—'}</span>,
+      cell: ({ row }) => <span className="font-medium text-sm">{row.original.client_name ?? '—'}</span>,
     },
     {
       accessorKey: 'item',
@@ -36,41 +44,51 @@ export function createColumns(onEdit: (order: OrderRow) => void, onDelete: (orde
       cell: ({ row }) => (
         <div className="flex items-center gap-1.5 max-w-[220px]">
           <span className="truncate text-muted-foreground text-sm">{row.original.item ?? '—'}</span>
-          {row.original.stock_item_id && row.original.is_stock === 0 && (
+          {(row.original.order_type === 'venta_stock' || row.original.order_type === 'inversion') && (
             <Badge variant="outline">STOCK</Badge>
           )}
         </div>
       ),
     },
     {
-      accessorKey: 'cantidad',
-      header: 'Cant.',
-      cell: ({ row }) => <span className="font-mono tabular-nums text-muted-foreground text-sm">{row.original.cantidad ?? '—'}</span>,
+      accessorKey: 'order_type',
+      header: 'Tipo',
+      cell: ({ row }) => {
+        const cfg = orderTypeConfig[row.original.order_type]
+        if (!cfg) return <span className="text-muted-foreground/40 text-xs">{row.original.order_type}</span>
+        return <Badge variant={cfg.variant} className="text-[10px] px-1.5">{cfg.label}</Badge>
+      },
+      filterFn: 'equals',
     },
     {
-      accessorKey: 'valor_presupuestado',
+      accessorKey: 'quantity',
+      header: 'Cant.',
+      cell: ({ row }) => <span className="font-mono tabular-nums text-muted-foreground text-sm">{row.original.quantity ?? '—'}</span>,
+    },
+    {
+      accessorKey: 'quoted_price',
       header: ({ column }) => <DataTableColumnHeader column={column} title="Presupuesto" />,
-      cell: ({ row }) => <span className="font-mono tabular-nums text-muted-foreground text-sm">{usd(row.original.valor_presupuestado)}</span>,
+      cell: ({ row }) => <span className="font-mono tabular-nums text-muted-foreground text-sm">{usd(row.original.quoted_price)}</span>,
       filterFn: (row, _, value) => {
-        if (value === 'inversion') return !row.original.valor_presupuestado || row.original.valor_presupuestado === 0
+        if (value === 'inversion') return !row.original.quoted_price || row.original.quoted_price === 0
         return true
       },
     },
     {
-      accessorKey: 'valor_compra',
+      accessorKey: 'cost',
       header: ({ column }) => <DataTableColumnHeader column={column} title="Compra" />,
-      cell: ({ row }) => <span className="font-mono tabular-nums text-muted-foreground text-sm">{usd(row.original.valor_compra)}</span>,
+      cell: ({ row }) => <span className="font-mono tabular-nums text-muted-foreground text-sm">{usd(row.original.cost)}</span>,
     },
     {
-      accessorKey: 'costo_envio',
+      accessorKey: 'import_cost',
       header: 'Envio',
-      cell: ({ row }) => <span className="font-mono tabular-nums text-muted-foreground/50 text-sm">{usd(row.original.costo_envio)}</span>,
+      cell: ({ row }) => <span className="font-mono tabular-nums text-muted-foreground/50 text-sm">{usd(row.original.import_cost)}</span>,
     },
     {
-      accessorKey: 'ganancia',
+      accessorKey: 'profit',
       header: ({ column }) => <DataTableColumnHeader column={column} title="Ganancia" />,
       cell: ({ row }) => {
-        const val = row.original.ganancia
+        const val = row.original.profit
         if (val == null) return <span className="text-muted-foreground/30">—</span>
         return (
           <span className={`font-mono tabular-nums text-sm font-semibold ${val >= 0 ? 'text-foreground' : 'text-destructive'}`}>
@@ -80,10 +98,10 @@ export function createColumns(onEdit: (order: OrderRow) => void, onDelete: (orde
       },
     },
     {
-      accessorKey: 'status',
+      accessorKey: 'status_name',
       header: 'Estado',
       cell: ({ row }) => {
-        const val = row.original.status
+        const val = row.original.status_name
         if (!val) return '—'
         const cfg = statusConfig[val] ?? { variant: 'outline' as const }
         return <Badge variant={cfg.variant}>{val}</Badge>
@@ -105,15 +123,29 @@ export function createColumns(onEdit: (order: OrderRow) => void, onDelete: (orde
       },
     },
     {
-      accessorKey: 'fecha_compra',
-      header: ({ column }) => <DataTableColumnHeader column={column} title="Fecha" />,
-      cell: ({ row }) => <span className="font-mono tabular-nums text-muted-foreground text-xs">{row.original.fecha_compra ?? '—'}</span>,
+      accessorKey: 'is_settled',
+      header: 'Liquidado',
+      cell: ({ row }) => {
+        return row.original.is_settled
+          ? <span className="inline-block w-2.5 h-2.5 rounded-full bg-green-500" title="Liquidado" />
+          : <span className="inline-block w-2.5 h-2.5 rounded-full bg-muted-foreground/20" title="Pendiente" />
+      },
+      filterFn: (row, _, value) => {
+        if (value === 'SI') return row.original.is_settled === 1
+        if (value === 'NO') return row.original.is_settled === 0
+        return true
+      },
     },
     {
-      accessorKey: 'asignado',
+      accessorKey: 'created_at',
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Fecha" />,
+      cell: ({ row }) => <span className="font-mono tabular-nums text-muted-foreground text-xs">{row.original.created_at ?? '—'}</span>,
+    },
+    {
+      accessorKey: 'assigned_to_name',
       header: 'Asignado',
       cell: ({ row }) => {
-        const val = row.original.asignado
+        const val = row.original.assigned_to_name
         return val
           ? <span className="text-primary/60 text-xs uppercase">{val}</span>
           : <span className="text-muted-foreground/20">—</span>

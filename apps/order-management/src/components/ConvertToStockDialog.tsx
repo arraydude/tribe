@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useForm, Controller } from 'react-hook-form'
+import { useForm, Controller, useFieldArray } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useConvertToStock, useStockItems } from '@/hooks/useOrders'
+import { useConvertToStock, useStockItems, usePriceTiers } from '@/hooks/useOrders'
 import type { OrderRow } from '@/lib/api'
 
 import { Input } from '@/components/ui/input'
@@ -23,11 +23,23 @@ interface ConvertToStockDialogProps {
   onClose: () => void
 }
 
+const DEFAULT_MARGINS: Record<string, number> = {
+  lista: 40,
+  taller: 30,
+  emi: 20,
+}
+
+const marginSchema = z.object({
+  tier_name: z.string(),
+  margin_percent: z.number().min(0, 'Margen debe ser >= 0'),
+})
+
 const stockSchema = z.object({
   marca: z.string().min(1, 'Marca es requerida'),
   item: z.string().min(1, 'Item es requerido'),
   variante: z.string(),
   cantidad_invertida: z.string(),
+  prices: z.array(marginSchema),
 })
 
 type StockFormValues = z.infer<typeof stockSchema>
@@ -39,6 +51,7 @@ function round2(n: number) {
 export function ConvertToStockDialog({ order, open, onClose }: ConvertToStockDialogProps) {
   const convertMutation = useConvertToStock()
   const { data: allStockItems } = useStockItems()
+  const { data: priceTiers } = usePriceTiers()
 
   const uniqueMarcas = useMemo(() => [...new Set((allStockItems ?? []).map((s) => s.marca))].sort(), [allStockItems])
   const uniqueItems = useMemo(() => [...new Set((allStockItems ?? []).map((s) => s.item))].sort(), [allStockItems])
@@ -46,23 +59,34 @@ export function ConvertToStockDialog({ order, open, onClose }: ConvertToStockDia
 
   const costCalc = useMemo(() => {
     if (!order) return { total: 0, perUnit: 0 }
-    const compra = Number(order.valor_compra) || 0
-    const tax = Number(order.tax) || 0
-    const envio = Number(order.costo_envio) || 0
-    const qty = Number(order.cantidad) || 1
-    const total = compra + tax + envio
+    const cost = Number(order.cost) || 0
+    const financingCost = Number(order.financing_cost) || 0
+    const importCost = Number(order.import_cost) || 0
+    const qty = Number(order.quantity) || 1
+    const total = cost + financingCost + importCost
     return { total, perUnit: round2(total / qty) }
   }, [order])
 
-  const { register, handleSubmit, control, reset, formState: { errors } } = useForm<StockFormValues>({
+  const defaultPrices = useMemo(() => {
+    const tiers = priceTiers ?? []
+    return tiers.map((t) => ({
+      tier_name: t.name,
+      margin_percent: DEFAULT_MARGINS[t.name] ?? 30,
+    }))
+  }, [priceTiers])
+
+  const { handleSubmit, control, reset, watch, formState: { errors } } = useForm<StockFormValues>({
     resolver: zodResolver(stockSchema),
     defaultValues: {
       marca: '',
       item: order?.item ?? '',
       variante: '',
-      cantidad_invertida: String(order?.cantidad ?? 1),
+      cantidad_invertida: String(order?.quantity ?? 1),
+      prices: defaultPrices,
     },
   })
+
+  const { fields } = useFieldArray({ control, name: 'prices' })
 
   useEffect(() => {
     if (order) {
@@ -70,15 +94,22 @@ export function ConvertToStockDialog({ order, open, onClose }: ConvertToStockDia
         marca: '',
         item: order.item ?? '',
         variante: '',
-        cantidad_invertida: String(order.cantidad ?? 1),
+        cantidad_invertida: String(order.quantity ?? 1),
+        prices: defaultPrices,
       })
     }
-  }, [order?.id])
+  }, [order?.id, defaultPrices])
 
+  const watchedPrices = watch('prices')
   const costoPerUnit = costCalc.perUnit
-  const precioLista = round2(costoPerUnit * 1.4)
-  const precioTaller = round2(costoPerUnit * 1.3)
-  const precioEmi = round2(costoPerUnit * 1.2)
+
+  const computedPrices = useMemo(() => {
+    return (watchedPrices ?? []).map((p) => ({
+      tier_name: p.tier_name,
+      margin_percent: p.margin_percent,
+      price: round2(costoPerUnit * (1 + (Number(p.margin_percent) || 0) / 100)),
+    }))
+  }, [watchedPrices, costoPerUnit])
 
   const [apiError, setApiError] = useState('')
 
@@ -93,12 +124,13 @@ export function ConvertToStockDialog({ order, open, onClose }: ConvertToStockDia
           marca: data.marca.trim(),
           item: data.item.trim(),
           variante: data.variante.trim() || null,
-          cantidad_invertida: Number(data.cantidad_invertida) || 1,
-          cantidad_disponible: Number(data.cantidad_invertida) || 1,
-          costo_por_unidad: costoPerUnit,
-          precio_lista: precioLista,
-          precio_taller: precioTaller,
-          precio_emi: precioEmi,
+          quantity: Number(data.cantidad_invertida) || 1,
+          available: Number(data.cantidad_invertida) || 1,
+          cost_per_unit: costoPerUnit,
+          prices: data.prices.map((p) => ({
+            tier_name: p.tier_name,
+            margin_percent: Number(p.margin_percent),
+          })),
         },
       })
       onClose()
@@ -128,7 +160,7 @@ export function ConvertToStockDialog({ order, open, onClose }: ConvertToStockDia
 
           <FieldGroup>
             <FieldDescription>
-              Costos del pedido: Compra {usd(Number(order?.valor_compra) || 0)} + Tax {usd(Number(order?.tax) || 0)} + Envío {usd(Number(order?.costo_envio) || 0)} = <strong>{usd(costCalc.total)}</strong>
+              Costos del pedido: Cost {usd(Number(order?.cost) || 0)} + Financing {usd(Number(order?.financing_cost) || 0)} + Import {usd(Number(order?.import_cost) || 0)} = <strong>{usd(costCalc.total)}</strong>
             </FieldDescription>
 
             <Separator />
@@ -195,7 +227,13 @@ export function ConvertToStockDialog({ order, open, onClose }: ConvertToStockDia
             <div className="grid grid-cols-2 gap-4">
               <Field>
                 <FieldLabel>Cantidad</FieldLabel>
-                <Input type="number" {...register('cantidad_invertida')} />
+                <Controller
+                  control={control}
+                  name="cantidad_invertida"
+                  render={({ field }) => (
+                    <Input type="number" {...field} />
+                  )}
+                />
               </Field>
               <Field>
                 <FieldLabel>Costo/Unidad <Badge variant="secondary" className="ml-auto">auto</Badge></FieldLabel>
@@ -206,18 +244,40 @@ export function ConvertToStockDialog({ order, open, onClose }: ConvertToStockDia
             <Separator />
 
             <div className="grid grid-cols-3 gap-4">
-              <Field>
-                <FieldLabel>P. Lista <Badge variant="secondary" className="ml-auto">×1.4</Badge></FieldLabel>
-                <Input type="number" value={precioLista} disabled />
-              </Field>
-              <Field>
-                <FieldLabel>P. Taller <Badge variant="secondary" className="ml-auto">×1.3</Badge></FieldLabel>
-                <Input type="number" value={precioTaller} disabled />
-              </Field>
-              <Field>
-                <FieldLabel>P. EMI <Badge variant="secondary" className="ml-auto">×1.2</Badge></FieldLabel>
-                <Input type="number" value={precioEmi} disabled />
-              </Field>
+              {fields.map((field, index) => {
+                const computed = computedPrices[index]
+                return (
+                  <Field key={field.id}>
+                    <FieldLabel className="capitalize">
+                      P. {field.tier_name}{' '}
+                      <Badge variant="secondary" className="ml-auto">
+                        {usd(computed?.price ?? 0)}
+                      </Badge>
+                    </FieldLabel>
+                    <Controller
+                      control={control}
+                      name={`prices.${index}.margin_percent`}
+                      render={({ field: marginField }) => (
+                        <div className="relative">
+                          <Input
+                            type="number"
+                            step="1"
+                            min="0"
+                            {...marginField}
+                            onChange={(e) => marginField.onChange(Number(e.target.value))}
+                          />
+                          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                            %
+                          </span>
+                        </div>
+                      )}
+                    />
+                    {errors.prices?.[index]?.margin_percent && (
+                      <FieldError>{errors.prices[index]!.margin_percent!.message}</FieldError>
+                    )}
+                  </Field>
+                )
+              })}
             </div>
           </FieldGroup>
 

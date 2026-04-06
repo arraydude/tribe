@@ -29,8 +29,8 @@ const usd = (val: number | null) =>
 const statusBadgeVariant = (status: string): 'default' | 'secondary' | 'outline' => {
   switch (status) {
     case 'DISPONIBLE': return 'default'
-    case 'EN TRANSITO': return 'secondary'
-    case 'RECIBIDO': return 'outline'
+    case 'EN CAMINO': return 'secondary'
+    case 'SOLD OUT': return 'outline'
     default: return 'outline'
   }
 }
@@ -62,11 +62,11 @@ function createStockColumns(onEdit: (id: number) => void, onViewSales: (id: numb
       ),
     },
     {
-      accessorKey: 'cantidad_disponible',
+      accessorKey: 'available',
       header: ({ column }) => <DataTableColumnHeader column={column} title="Disponible" />,
       cell: ({ row }) => (
-        <Badge variant={row.original.cantidad_disponible > 0 ? 'default' : 'outline'}>
-          {row.original.cantidad_disponible}
+        <Badge variant={row.original.available > 0 ? 'default' : 'outline'}>
+          {row.original.available}
         </Badge>
       ),
     },
@@ -138,10 +138,10 @@ export function StockDashboard() {
   const kpis = useMemo(() => {
     if (!balanceData) return { inStock: 0, unitsAvailable: 0, invested: 0, stockValue: 0, balanceTotal: 0 }
     return {
-      inStock: balanceData.filter((i) => i.cantidad_disponible > 0).length,
-      unitsAvailable: balanceData.reduce((sum, i) => sum + i.cantidad_disponible, 0),
+      inStock: balanceData.filter((i) => i.available > 0).length,
+      unitsAvailable: balanceData.reduce((sum, i) => sum + i.available, 0),
       invested: balanceData.reduce((sum, i) => sum + i.total_invertido, 0),
-      stockValue: balanceData.reduce((sum, i) => sum + i.cantidad_disponible * i.costo_por_unidad, 0),
+      stockValue: balanceData.reduce((sum, i) => sum + i.available * i.cost_per_unit, 0),
       balanceTotal: balanceData.reduce((sum, i) => sum + i.balance, 0),
     }
   }, [balanceData])
@@ -232,7 +232,7 @@ export function StockDashboard() {
             <DialogDescription>
               {(() => {
                 const si = balanceData?.find((b) => b.id === salesItemId)
-                return si ? `${si.marca} ${si.item} ${si.variante ?? ''}` : ''
+                return si ? getStockDisplayName(si) : ''
               })()}
             </DialogDescription>
           </DialogHeader>
@@ -252,11 +252,11 @@ export function StockDashboard() {
                 <tbody>
                   {salesData.map((order) => (
                     <tr key={order.id} className="border-b">
-                      <td className="px-3 py-2 font-medium">{order.cliente}</td>
-                      <td className="px-3 py-2 font-mono tabular-nums">{usd(order.valor_presupuestado)}</td>
-                      <td className="px-3 py-2 font-mono tabular-nums text-muted-foreground">{usd(order.valor_compra)}</td>
-                      <td className="px-3 py-2 font-mono tabular-nums font-semibold">{usd(order.ganancia)}</td>
-                      <td className="px-3 py-2"><Badge variant={order.status === 'DONE' ? 'default' : 'secondary'}>{order.status}</Badge></td>
+                      <td className="px-3 py-2 font-medium">{order.client_name}</td>
+                      <td className="px-3 py-2 font-mono tabular-nums">{usd(order.quoted_price)}</td>
+                      <td className="px-3 py-2 font-mono tabular-nums text-muted-foreground">{usd(order.cost)}</td>
+                      <td className="px-3 py-2 font-mono tabular-nums font-semibold">{usd(order.profit)}</td>
+                      <td className="px-3 py-2"><Badge variant={order.status_name === 'DONE' ? 'default' : 'secondary'}>{order.status_name}</Badge></td>
                       <td className="px-3 py-2">{order.is_paid ? <Badge variant="default">SI</Badge> : <span className="text-muted-foreground/40">NO</span>}</td>
                     </tr>
                   ))}

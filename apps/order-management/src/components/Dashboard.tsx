@@ -41,7 +41,9 @@ const statusConfig = {
   DONE: { label: 'Done', color: 'var(--chart-1)' },
   'IN PROGRESS': { label: 'In Progress', color: 'var(--chart-2)' },
   'TO DO': { label: 'To Do', color: 'var(--chart-3)' },
-  'RECEIVED BAIRES': { label: 'Received', color: 'var(--chart-4)' },
+  'RECEIVED MIAMI': { label: 'Received Miami', color: 'var(--chart-4)' },
+  'RECEIVED BAIRES': { label: 'Received Baires', color: 'var(--chart-5)' },
+  'READY TO DELIVER': { label: 'Ready to Deliver', color: 'var(--chart-6)' },
 } satisfies ChartConfig
 
 const clientConfig = {
@@ -49,9 +51,9 @@ const clientConfig = {
 } satisfies ChartConfig
 
 export function Dashboard({ data }: DashboardProps) {
-  const { counts, profit, topClients, monthly, statusDistribution, bestOrder, worstOrder } = data
+  const { stats, profit, topClients, monthly, statusDist, best, worst } = data
 
-  const pending = counts.in_progress_count + counts.todo_count + counts.received_count
+  const pending = stats.in_progress_count + stats.todo_count + stats.received_count
 
   const monthlyChart = monthly.map((m) => ({
     month: m.month.slice(2),
@@ -70,7 +72,7 @@ export function Dashboard({ data }: DashboardProps) {
         <Card size="sm">
           <CardHeader>
             <CardDescription>Pedidos Totales</CardDescription>
-            <CardTitle className="font-mono tabular-nums text-xl">{counts.total_orders}</CardTitle>
+            <CardTitle className="font-mono tabular-nums text-xl">{stats.total_orders}</CardTitle>
           </CardHeader>
         </Card>
         <Card size="sm">
@@ -95,27 +97,27 @@ export function Dashboard({ data }: DashboardProps) {
 
       {/* Best / Worst */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {bestOrder && (
+        {best && (
           <Card>
             <CardHeader>
               <CardDescription>Mayor Ganancia</CardDescription>
-              <CardTitle className="font-mono tabular-nums text-2xl">{usd(bestOrder.ganancia ?? 0)}</CardTitle>
+              <CardTitle className="font-mono tabular-nums text-2xl">{usd(best.profit ?? 0)}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground">{bestOrder.item}</p>
-              <p className="text-xs text-muted-foreground/60 mt-0.5">{bestOrder.cliente}</p>
+              <p className="text-sm text-muted-foreground">{best.item}</p>
+              <p className="text-xs text-muted-foreground/60 mt-0.5">{best.client_name}</p>
             </CardContent>
           </Card>
         )}
-        {worstOrder && (
+        {worst && (
           <Card>
             <CardHeader>
               <CardDescription>Mayor Perdida</CardDescription>
-              <CardTitle className="font-mono tabular-nums text-2xl text-destructive">{usd(worstOrder.ganancia ?? 0)}</CardTitle>
+              <CardTitle className="font-mono tabular-nums text-2xl text-destructive">{usd(worst.profit ?? 0)}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground">{worstOrder.item}</p>
-              <p className="text-xs text-muted-foreground/60 mt-0.5">{worstOrder.cliente}</p>
+              <p className="text-sm text-muted-foreground">{worst.item}</p>
+              <p className="text-xs text-muted-foreground/60 mt-0.5">{worst.client_name}</p>
             </CardContent>
           </Card>
         )}
@@ -151,8 +153,8 @@ export function Dashboard({ data }: DashboardProps) {
           <CardContent>
             <ChartContainer config={statusConfig} className="h-[200px] w-full">
               <PieChart>
-                <Pie data={statusDistribution} dataKey="count" nameKey="status" cx="50%" cy="50%" innerRadius={45} outerRadius={75} strokeWidth={0} paddingAngle={2}>
-                  {statusDistribution.map((entry, i) => (
+                <Pie data={statusDist} dataKey="count" nameKey="status" cx="50%" cy="50%" innerRadius={45} outerRadius={75} strokeWidth={0} paddingAngle={2}>
+                  {statusDist.map((entry, i) => (
                     <Cell key={i} fill={`var(--color-${entry.status})`} />
                   ))}
                 </Pie>

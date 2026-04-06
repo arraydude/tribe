@@ -2,8 +2,8 @@ import { useMemo, useState } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useCreateOrder, useUpdateOrder, useClients, useTeamMembers } from '@/hooks/useOrders'
-import type { OrderRow } from '@/lib/api'
+import { useCreateOrder, useUpdateOrder, useClients, useStaff, useTrackingStatuses } from '@/hooks/useOrders'
+import type { OrderRow, StaffMember, TrackingStatus } from '@/lib/api'
 
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -26,22 +26,20 @@ interface OrderFormProps {
   onCancel: () => void
 }
 
-const STATUS_OPTIONS = ['TO DO', 'IN PROGRESS', 'RECEIVED BAIRES', 'DONE']
-
 const orderSchema = z.object({
-  cliente: z.string().min(1, 'Cliente es requerido'),
+  client_name: z.string().min(1, 'Cliente es requerido'),
   item: z.string().min(1, 'Item es requerido'),
-  cantidad: z.string(),
-  link_compra: z.string(),
-  status: z.string(),
-  asignado: z.string().min(1, 'Asignado es requerido'),
-  tracking: z.string(),
-  valor_compra: z.string(),
-  peso: z.string(),
-  margen: z.string(),
-  presup_override: z.string(),
+  quantity: z.string(),
+  purchase_link: z.string(),
+  tracking_status_id: z.string(),
+  assigned_to: z.string().min(1, 'Asignado es requerido'),
+  tracking_number: z.string(),
+  cost: z.string(),
+  weight: z.string(),
+  margin_percent: z.string(),
+  quoted_price_override: z.string(),
   saldado: z.string(),
-  observaciones: z.string(),
+  notes: z.string(),
 })
 
 type OrderFormValues = z.infer<typeof orderSchema>
@@ -58,49 +56,59 @@ function fmtUSD(n: number | null): string {
 export function OrderForm({ order, onDone, onCancel }: OrderFormProps) {
   const isEdit = !!order
 
+  const { data: staffList } = useStaff()
+  const { data: trackingStatuses } = useTrackingStatuses()
+
+  // Find the default tracking status id (first one by sort_order, or fallback)
+  const defaultStatusId = useMemo(() => {
+    if (!trackingStatuses?.length) return ''
+    const sorted = [...trackingStatuses].sort((a, b) => a.sort_order - b.sort_order)
+    return String(sorted[0].id)
+  }, [trackingStatuses])
+
   const { register, handleSubmit, control, watch, setValue, formState: { errors } } = useForm<OrderFormValues>({
     resolver: zodResolver(orderSchema),
     defaultValues: {
-      cliente: order?.cliente ?? '',
+      client_name: order?.client_name ?? '',
       item: order?.item ?? '',
-      cantidad: String(order?.cantidad ?? 1),
-      link_compra: order?.link_compra ?? '',
-      status: order?.status ?? 'TO DO',
-      asignado: order?.asignado ?? '',
-      tracking: order?.tracking ?? '',
-      valor_compra: order?.valor_compra != null ? String(order.valor_compra) : '',
-      peso: order?.peso != null ? String(order.peso) : '',
-      margen: '30',
-      presup_override: order?.valor_presupuestado != null ? String(order.valor_presupuestado) : '',
-      saldado: order?.is_paid && order?.paid_to ? order.paid_to : 'NO',
-      observaciones: order?.observaciones ?? '',
+      quantity: String(order?.quantity ?? 1),
+      purchase_link: order?.purchase_link ?? '',
+      tracking_status_id: order?.tracking_status_id != null ? String(order.tracking_status_id) : defaultStatusId,
+      assigned_to: order?.assigned_to != null ? String(order.assigned_to) : '',
+      tracking_number: order?.tracking_number ?? '',
+      cost: order?.cost != null ? String(order.cost) : '',
+      weight: order?.weight != null ? String(order.weight) : '',
+      margin_percent: order?.margin_percent != null ? String(order.margin_percent) : '30',
+      quoted_price_override: order?.quoted_price != null ? String(order.quoted_price) : '',
+      saldado: order?.is_paid && order?.paid_to ? String(order.paid_to) : 'NO',
+      notes: order?.notes ?? '',
     },
   })
 
-  const [presupIsManual, setPresupIsManual] = useState(isEdit && order?.valor_presupuestado != null)
+  const [presupIsManual, setPresupIsManual] = useState(isEdit && order?.quoted_price != null)
   const [apiError, setApiError] = useState('')
   const createMutation = useCreateOrder()
   const updateMutation = useUpdateOrder()
   const { data: clients } = useClients()
-  const { data: teamMembers } = useTeamMembers()
 
   const clientNames = useMemo(() => (clients ?? []).map((c) => c.name), [clients])
 
-  const valorCompra = watch('valor_compra')
-  const peso = watch('peso')
-  const margen = watch('margen')
-  const presupOverride = watch('presup_override')
+  const costVal = watch('cost')
+  const weightVal = watch('weight')
+  const marginVal = watch('margin_percent')
+  const presupOverride = watch('quoted_price_override')
 
   const calc = useMemo(() => {
-    const compra = Number(valorCompra) || 0
-    const pesoNum = Number(peso) || 0
-    const m = Number(margen) / 100
+    const compra = Number(costVal) || 0
+    const pesoNum = Number(weightVal) || 0
+    const m = Number(marginVal) / 100
 
     if (!compra) return null
 
     const banco = round2(compra * 0.01)
     const debitado = round2(compra + banco)
     const comision = round2(debitado * 0.04)
+    const financingCost = round2(banco + comision)
     const subtotal = round2(debitado + comision)
     const envio = pesoNum ? round2(45 * pesoNum) : 0
     const costoTotal = round2(subtotal + envio)
@@ -108,33 +116,44 @@ export function OrderForm({ order, onDone, onCancel }: OrderFormProps) {
     const presup = presupIsManual ? (Number(presupOverride) || 0) : presupAuto
     const ganancia = round2(presup - costoTotal)
 
-    return { compra, banco, debitado, comision, subtotal, envio, costoTotal, presupAuto, presup, ganancia }
-  }, [valorCompra, peso, margen, presupIsManual, presupOverride])
+    return { compra, banco, debitado, comision, financingCost, subtotal, envio, costoTotal, presupAuto, presup, ganancia }
+  }, [costVal, weightVal, marginVal, presupIsManual, presupOverride])
 
   const onSubmit = async (data: OrderFormValues) => {
     setApiError('')
     const isPaid = data.saldado !== 'NO'
-    const paidTo = isPaid ? data.saldado : null
+    const paidTo = isPaid ? Number(data.saldado) : null
+
+    const cost = data.cost ? Number(data.cost) : null
+    const weight = data.weight ? Number(data.weight) : null
+    const financingCost = calc?.financingCost ?? null
+    const importCost = calc?.envio ?? null
+    const quotedPrice = calc?.presup ?? null
+    const marginPercent = Number(data.margin_percent) || null
+    const profit = calc?.ganancia ?? null
 
     const payload: Record<string, unknown> = {
-      cliente: data.cliente.trim(),
+      order_type: 'importacion',
+      client_name: data.client_name.trim(),
       item: data.item.trim(),
-      cantidad: Number(data.cantidad) || 1,
-      valor_compra: data.valor_compra ? Number(data.valor_compra) : null,
-      valor_debitado: calc?.debitado ?? null,
-      tax: calc?.comision ?? null,
-      costo_envio: calc?.envio ?? null,
-      peso: data.peso ? Number(data.peso) : null,
-      valor_presupuestado: calc?.presup ?? null,
-      ganancia: calc?.ganancia ?? null,
-      status: data.status,
-      is_stock: false,
-      is_paid: isPaid,
-      asignado: data.asignado || null,
+      quantity: Number(data.quantity) || 1,
+      purchase_link: data.purchase_link || null,
+      tracking_status_id: Number(data.tracking_status_id),
+      assigned_to: Number(data.assigned_to) || null,
+      tracking_number: data.tracking_number || null,
+      notes: data.notes || null,
+      cost,
+      financing_cost: financingCost,
+      import_cost: importCost,
+      quoted_price: quotedPrice,
+      margin_percent: marginPercent,
+      profit,
+      weight,
+      is_paid: isPaid ? 1 : 0,
       paid_to: paidTo,
-      tracking: data.tracking || null,
-      link_compra: data.link_compra || null,
-      observaciones: data.observaciones || null,
+      paid_at: isPaid ? new Date().toISOString() : null,
+      is_settled: 0,
+      settled_at: null,
     }
 
     try {
@@ -170,11 +189,11 @@ export function OrderForm({ order, onDone, onCancel }: OrderFormProps) {
             <div className="md:col-span-2">
               <FieldGroup>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <Field data-invalid={!!errors.cliente}>
+                  <Field data-invalid={!!errors.client_name}>
                     <FieldLabel>Cliente <span className="text-destructive">*</span></FieldLabel>
                     <Controller
                       control={control}
-                      name="cliente"
+                      name="client_name"
                       render={({ field }) => (
                         <Combobox items={clientNames} value={field.value || null} onValueChange={(val) => field.onChange(val ?? '')}>
                           <ComboboxInput placeholder="Buscar cliente..." showClear />
@@ -187,7 +206,7 @@ export function OrderForm({ order, onDone, onCancel }: OrderFormProps) {
                         </Combobox>
                       )}
                     />
-                    {errors.cliente && <FieldError>{errors.cliente.message}</FieldError>}
+                    {errors.client_name && <FieldError>{errors.client_name.message}</FieldError>}
                   </Field>
                   <Field data-invalid={!!errors.item}>
                     <FieldLabel htmlFor="item-import">Item <span className="text-destructive">*</span></FieldLabel>
@@ -197,12 +216,12 @@ export function OrderForm({ order, onDone, onCancel }: OrderFormProps) {
                 </div>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Field>
-                    <FieldLabel htmlFor="cantidad">Cantidad</FieldLabel>
-                    <Input id="cantidad" type="number" min="1" {...register('cantidad')} />
+                    <FieldLabel htmlFor="quantity">Cantidad</FieldLabel>
+                    <Input id="quantity" type="number" min="1" {...register('quantity')} />
                   </Field>
                   <Field>
-                    <FieldLabel htmlFor="link_compra">Link Compra</FieldLabel>
-                    <Input id="link_compra" {...register('link_compra')} placeholder="URL del producto" />
+                    <FieldLabel htmlFor="purchase_link">Link Compra</FieldLabel>
+                    <Input id="purchase_link" {...register('purchase_link')} placeholder="URL del producto" />
                   </Field>
                 </div>
               </FieldGroup>
@@ -221,44 +240,48 @@ export function OrderForm({ order, onDone, onCancel }: OrderFormProps) {
               <FieldGroup>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Field>
-                    <FieldLabel htmlFor="status">Status</FieldLabel>
+                    <FieldLabel htmlFor="tracking_status_id">Status</FieldLabel>
                     <Controller
                       control={control}
-                      name="status"
+                      name="tracking_status_id"
                       render={({ field }) => (
                         <Select value={field.value} onValueChange={field.onChange}>
-                          <SelectTrigger id="status"><SelectValue /></SelectTrigger>
+                          <SelectTrigger id="tracking_status_id"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectGroup>
-                              {STATUS_OPTIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                              {(trackingStatuses ?? []).map((s: TrackingStatus) => (
+                                <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                              ))}
                             </SelectGroup>
                           </SelectContent>
                         </Select>
                       )}
                     />
                   </Field>
-                  <Field data-invalid={!!errors.asignado}>
-                    <FieldLabel htmlFor="asignado">Asignado <span className="text-destructive">*</span></FieldLabel>
+                  <Field data-invalid={!!errors.assigned_to}>
+                    <FieldLabel htmlFor="assigned_to">Asignado <span className="text-destructive">*</span></FieldLabel>
                     <Controller
                       control={control}
-                      name="asignado"
+                      name="assigned_to"
                       render={({ field }) => (
                         <Select value={field.value || undefined} onValueChange={field.onChange}>
-                          <SelectTrigger id="asignado"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+                          <SelectTrigger id="assigned_to"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
                           <SelectContent>
                             <SelectGroup>
-                              {(teamMembers ?? []).map((m) => <SelectItem key={m.id} value={m.name}>{m.name}</SelectItem>)}
+                              {(staffList ?? []).map((m: StaffMember) => (
+                                <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>
+                              ))}
                             </SelectGroup>
                           </SelectContent>
                         </Select>
                       )}
                     />
-                    {errors.asignado && <FieldError>{errors.asignado.message}</FieldError>}
+                    {errors.assigned_to && <FieldError>{errors.assigned_to.message}</FieldError>}
                   </Field>
                 </div>
                 <Field>
-                  <FieldLabel htmlFor="tracking">Tracking</FieldLabel>
-                  <Input id="tracking" {...register('tracking')} />
+                  <FieldLabel htmlFor="tracking_number">Tracking</FieldLabel>
+                  <Input id="tracking_number" {...register('tracking_number')} />
                 </Field>
               </FieldGroup>
             </div>
@@ -276,12 +299,12 @@ export function OrderForm({ order, onDone, onCancel }: OrderFormProps) {
               <FieldGroup>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Field>
-                    <FieldLabel htmlFor="valor_compra">Compra (USD)</FieldLabel>
-                    <Input id="valor_compra" type="number" step="any" {...register('valor_compra')} placeholder="0.00" />
+                    <FieldLabel htmlFor="cost">Compra (USD)</FieldLabel>
+                    <Input id="cost" type="number" step="any" {...register('cost')} placeholder="0.00" />
                   </Field>
                   <Field>
-                    <FieldLabel htmlFor="peso">Peso (kg)</FieldLabel>
-                    <Input id="peso" type="number" step="any" {...register('peso')} placeholder="0.00" />
+                    <FieldLabel htmlFor="weight">Peso (kg)</FieldLabel>
+                    <Input id="weight" type="number" step="any" {...register('weight')} placeholder="0.00" />
                   </Field>
                 </div>
 
@@ -297,7 +320,7 @@ export function OrderForm({ order, onDone, onCancel }: OrderFormProps) {
                         <BreakdownRow label="+ Comisión (4%)" value={calc.comision} muted />
                         <BreakdownRow label="= Subtotal" value={calc.subtotal} bold />
                         {calc.envio > 0 && (
-                          <BreakdownRow label={`+ Envío ($45 × ${Number(peso)}kg)`} value={calc.envio} muted />
+                          <BreakdownRow label={`+ Envío ($45 × ${Number(weightVal)}kg)`} value={calc.envio} muted />
                         )}
                         <Separator className="my-2" />
                         <div className="flex justify-between pt-1 text-base font-bold">
@@ -313,7 +336,7 @@ export function OrderForm({ order, onDone, onCancel }: OrderFormProps) {
                       <div className="flex items-center gap-3">
                         <Controller
                           control={control}
-                          name="margen"
+                          name="margin_percent"
                           render={({ field }) => (
                             <ToggleGroup type="single" value={field.value} onValueChange={(v) => { if (v) field.onChange(v) }} size="sm" variant="outline">
                               <ToggleGroupItem value="10">10%</ToggleGroupItem>
@@ -323,7 +346,7 @@ export function OrderForm({ order, onDone, onCancel }: OrderFormProps) {
                           )}
                         />
                         <div className="flex items-center gap-1">
-                          <Input type="number" {...register('margen')} className="w-20 text-center text-sm" />
+                          <Input type="number" {...register('margin_percent')} className="w-20 text-center text-sm" />
                           <span className="text-sm text-muted-foreground">%</span>
                         </div>
                       </div>
@@ -336,7 +359,7 @@ export function OrderForm({ order, onDone, onCancel }: OrderFormProps) {
                           {presupIsManual ? (
                             <button
                               type="button"
-                              onClick={() => { setPresupIsManual(false); setValue('presup_override', '') }}
+                              onClick={() => { setPresupIsManual(false); setValue('quoted_price_override', '') }}
                               className="text-xs text-muted-foreground hover:text-foreground"
                             >
                               ↺ auto
@@ -344,7 +367,7 @@ export function OrderForm({ order, onDone, onCancel }: OrderFormProps) {
                           ) : (
                             <button
                               type="button"
-                              onClick={() => { setPresupIsManual(true); setValue('presup_override', String(calc.presupAuto)) }}
+                              onClick={() => { setPresupIsManual(true); setValue('quoted_price_override', String(calc.presupAuto)) }}
                               className="text-xs text-muted-foreground hover:text-foreground"
                             >
                               editar
@@ -355,7 +378,7 @@ export function OrderForm({ order, onDone, onCancel }: OrderFormProps) {
                           <Input
                             type="number"
                             step="any"
-                            {...register('presup_override')}
+                            {...register('quoted_price_override')}
                             className="mt-1"
                             autoFocus
                           />
@@ -395,7 +418,9 @@ export function OrderForm({ order, onDone, onCancel }: OrderFormProps) {
                         <SelectContent>
                           <SelectGroup>
                             <SelectItem value="NO">NO</SelectItem>
-                            {(teamMembers ?? []).map((m) => <SelectItem key={m.id} value={m.name}>{m.name}</SelectItem>)}
+                            {(staffList ?? []).map((m: StaffMember) => (
+                              <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>
+                            ))}
                           </SelectGroup>
                         </SelectContent>
                       </Select>
@@ -403,8 +428,8 @@ export function OrderForm({ order, onDone, onCancel }: OrderFormProps) {
                   />
                 </Field>
                 <Field>
-                  <FieldLabel htmlFor="observaciones">Observaciones</FieldLabel>
-                  <Textarea id="observaciones" {...register('observaciones')} rows={3} />
+                  <FieldLabel htmlFor="notes">Observaciones</FieldLabel>
+                  <Textarea id="notes" {...register('notes')} rows={3} />
                 </Field>
               </FieldGroup>
             </div>
