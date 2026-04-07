@@ -7,7 +7,7 @@ import type { OrderRow } from '@/lib/api'
 
 import { Input } from '@/components/ui/input'
 import {
-  Combobox, ComboboxInput, ComboboxContent, ComboboxList, ComboboxItem, ComboboxEmpty,
+  ComboboxCreatable, ComboboxInput, ComboboxContent, ComboboxList, ComboboxItem, ComboboxEmpty,
 } from '@/components/ui/combobox'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -172,15 +172,15 @@ export function ConvertToStockDialog({ order, open, onClose }: ConvertToStockDia
                   control={control}
                   name="marca"
                   render={({ field }) => (
-                    <Combobox items={uniqueMarcas} value={field.value || null} onValueChange={(val) => field.onChange(val ?? '')}>
-                      <ComboboxInput placeholder="CTS" showClear />
+                    <ComboboxCreatable items={uniqueMarcas} value={field.value || null} onValueChange={(val) => field.onChange(val ?? '')}>
+                      <ComboboxCreatableInput placeholder="CTS" showClear />
                       <ComboboxContent>
                         <ComboboxEmpty>Nueva marca</ComboboxEmpty>
                         <ComboboxList>
                           {(m) => <ComboboxItem key={m} value={m}>{m}</ComboboxItem>}
                         </ComboboxList>
                       </ComboboxContent>
-                    </Combobox>
+                    </ComboboxCreatable>
                   )}
                 />
                 {errors.marca && <FieldError>{errors.marca.message}</FieldError>}
@@ -191,15 +191,15 @@ export function ConvertToStockDialog({ order, open, onClose }: ConvertToStockDia
                   control={control}
                   name="item"
                   render={({ field }) => (
-                    <Combobox items={uniqueItems} value={field.value || null} onValueChange={(val) => field.onChange(val ?? '')}>
-                      <ComboboxInput showClear />
+                    <ComboboxCreatable items={uniqueItems} value={field.value || null} onValueChange={(val) => field.onChange(val ?? '')}>
+                      <ComboboxCreatableInput showClear />
                       <ComboboxContent>
                         <ComboboxEmpty>Nuevo item</ComboboxEmpty>
                         <ComboboxList>
                           {(i) => <ComboboxItem key={i} value={i}>{i}</ComboboxItem>}
                         </ComboboxList>
                       </ComboboxContent>
-                    </Combobox>
+                    </ComboboxCreatable>
                   )}
                 />
                 {errors.item && <FieldError>{errors.item.message}</FieldError>}
@@ -210,15 +210,15 @@ export function ConvertToStockDialog({ order, open, onClose }: ConvertToStockDia
                   control={control}
                   name="variante"
                   render={({ field }) => (
-                    <Combobox items={uniqueVariantes} value={field.value || null} onValueChange={(val) => field.onChange(val ?? '')}>
-                      <ComboboxInput placeholder="B58" showClear />
+                    <ComboboxCreatable items={uniqueVariantes} value={field.value || null} onValueChange={(val) => field.onChange(val ?? '')}>
+                      <ComboboxCreatableInput placeholder="B58" showClear />
                       <ComboboxContent>
                         <ComboboxEmpty>Nueva variante</ComboboxEmpty>
                         <ComboboxList>
                           {(v) => <ComboboxItem key={v} value={v}>{v}</ComboboxItem>}
                         </ComboboxList>
                       </ComboboxContent>
-                    </Combobox>
+                    </ComboboxCreatable>
                   )}
                 />
               </Field>

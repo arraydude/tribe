@@ -13,7 +13,20 @@ import {
 } from "@/components/ui/input-group"
 import { CaretDownIcon, XIcon, CheckIcon } from "@phosphor-icons/react"
 
-const Combobox = ComboboxPrimitive.Root
+// Track open state so ComboboxInput can stop Escape propagation
+const ComboboxOpenContext = React.createContext(false)
+
+function Combobox({ onOpenChange, ...props }: ComboboxPrimitive.Root.Props) {
+  const [open, setOpen] = React.useState(false)
+  return (
+    <ComboboxOpenContext.Provider value={open}>
+      <ComboboxPrimitive.Root
+        onOpenChange={(isOpen) => { setOpen(isOpen); onOpenChange?.(isOpen) }}
+        {...props}
+      />
+    </ComboboxOpenContext.Provider>
+  )
+}
 
 function ComboboxValue({ ...props }: ComboboxPrimitive.Value.Props) {
   return <ComboboxPrimitive.Value data-slot="combobox-value" {...props} />
@@ -55,15 +68,24 @@ function ComboboxInput({
   disabled = false,
   showTrigger = true,
   showClear = false,
+  onKeyDown,
   ...props
 }: ComboboxPrimitive.Input.Props & {
   showTrigger?: boolean
   showClear?: boolean
 }) {
+  const isOpen = React.useContext(ComboboxOpenContext)
   return (
     <InputGroup className={cn("w-auto", className)}>
       <ComboboxPrimitive.Input
         render={<InputGroupInput disabled={disabled} />}
+        onKeyDown={(e) => {
+          // Stop Escape from closing parent Dialog when combobox dropdown is open
+          if (e.key === 'Escape' && isOpen) {
+            e.stopPropagation()
+          }
+          onKeyDown?.(e)
+        }}
         {...props}
       />
       <InputGroupAddon align="inline-end">
@@ -204,6 +226,87 @@ function ComboboxEmpty({ className, ...props }: ComboboxPrimitive.Empty.Props) {
   )
 }
 
+// Track input text for creatable comboboxes
+const ComboboxInputValueContext = React.createContext({ value: '', setValue: (_v: string) => {} })
+
+function ComboboxCreatable({ items, onValueChange, children, ...props }: ComboboxPrimitive.Root.Props & { items: string[] }) {
+  const [inputValue, setInputValue] = React.useState('')
+  const [open, setOpen] = React.useState(false)
+
+  const effectiveItems = React.useMemo(() => {
+    const text = inputValue.trim()
+    if (text && !items.some(i => i.toLowerCase() === text.toLowerCase())) {
+      return [text, ...items]
+    }
+    return items
+  }, [items, inputValue])
+
+  return (
+    <ComboboxOpenContext.Provider value={open}>
+      <ComboboxInputValueContext.Provider value={{ value: inputValue, setValue: setInputValue }}>
+        <ComboboxPrimitive.Root
+          items={effectiveItems}
+          onOpenChange={(isOpen) => { setOpen(isOpen); props.onOpenChange?.(isOpen) }}
+          onValueChange={(val) => {
+            onValueChange?.(val)
+            setInputValue('')
+          }}
+          {...props}
+        >
+          {children}
+        </ComboboxPrimitive.Root>
+      </ComboboxInputValueContext.Provider>
+    </ComboboxOpenContext.Provider>
+  )
+}
+
+function ComboboxCreatableInput({
+  className,
+  children,
+  disabled = false,
+  showTrigger = true,
+  showClear = false,
+  onKeyDown,
+  ...props
+}: ComboboxPrimitive.Input.Props & {
+  showTrigger?: boolean
+  showClear?: boolean
+}) {
+  const isOpen = React.useContext(ComboboxOpenContext)
+  const { setValue } = React.useContext(ComboboxInputValueContext)
+  return (
+    <InputGroup className={cn("w-auto", className)}>
+      <ComboboxPrimitive.Input
+        render={<InputGroupInput disabled={disabled} />}
+        onInput={(e) => setValue((e.target as HTMLInputElement).value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape' && isOpen) {
+            e.stopPropagation()
+          }
+          onKeyDown?.(e)
+        }}
+        {...props}
+      />
+      <InputGroupAddon align="inline-end">
+        {showTrigger && (
+          <InputGroupButton
+            size="icon-xs"
+            variant="ghost"
+            asChild
+            data-slot="input-group-button"
+            className="group-has-data-[slot=combobox-clear]/input-group:hidden data-pressed:bg-transparent"
+            disabled={disabled}
+          >
+            <ComboboxTrigger />
+          </InputGroupButton>
+        )}
+        {showClear && <ComboboxClear disabled={disabled} />}
+      </InputGroupAddon>
+      {children}
+    </InputGroup>
+  )
+}
+
 function ComboboxSeparator({
   className,
   ...props
@@ -284,6 +387,8 @@ function useComboboxAnchor() {
 
 export {
   Combobox,
+  ComboboxCreatable,
+  ComboboxCreatableInput,
   ComboboxInput,
   ComboboxContent,
   ComboboxList,

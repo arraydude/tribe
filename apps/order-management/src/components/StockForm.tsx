@@ -18,8 +18,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
-  Combobox,
-  ComboboxInput,
+  ComboboxCreatable,
+  ComboboxCreatableInput,
   ComboboxContent,
   ComboboxList,
   ComboboxItem,
@@ -196,15 +196,15 @@ export function StockForm({ stockItem, onDone, onCancel }: StockFormProps) {
                   control={control}
                   name="marca"
                   render={({ field }) => (
-                    <Combobox items={uniqueMarcas} value={field.value || null} onValueChange={(val) => field.onChange(val ?? '')}>
-                      <ComboboxInput placeholder="Ej: CTS Turbo" showClear />
+                    <ComboboxCreatable items={uniqueMarcas} value={field.value || null} onValueChange={(val) => field.onChange(val ?? '')}>
+                      <ComboboxCreatableInput placeholder="Ej: CTS Turbo" showClear />
                       <ComboboxContent>
                         <ComboboxEmpty>Nueva marca</ComboboxEmpty>
                         <ComboboxList>
                           {(m) => <ComboboxItem key={m} value={m}>{m}</ComboboxItem>}
                         </ComboboxList>
                       </ComboboxContent>
-                    </Combobox>
+                    </ComboboxCreatable>
                   )}
                 />
                 {errors.marca && <FieldError>{errors.marca.message}</FieldError>}
@@ -217,15 +217,15 @@ export function StockForm({ stockItem, onDone, onCancel }: StockFormProps) {
                   control={control}
                   name="item"
                   render={({ field }) => (
-                    <Combobox items={uniqueItems} value={field.value || null} onValueChange={(val) => field.onChange(val ?? '')}>
-                      <ComboboxInput placeholder="Ej: Intercooler" showClear />
+                    <ComboboxCreatable items={uniqueItems} value={field.value || null} onValueChange={(val) => field.onChange(val ?? '')}>
+                      <ComboboxCreatableInput placeholder="Ej: Intercooler" showClear />
                       <ComboboxContent>
                         <ComboboxEmpty>Nuevo item</ComboboxEmpty>
                         <ComboboxList>
                           {(i) => <ComboboxItem key={i} value={i}>{i}</ComboboxItem>}
                         </ComboboxList>
                       </ComboboxContent>
-                    </Combobox>
+                    </ComboboxCreatable>
                   )}
                 />
                 {errors.item && <FieldError>{errors.item.message}</FieldError>}
@@ -236,15 +236,15 @@ export function StockForm({ stockItem, onDone, onCancel }: StockFormProps) {
                   control={control}
                   name="variante"
                   render={({ field }) => (
-                    <Combobox items={uniqueVariantes} value={field.value || null} onValueChange={(val) => field.onChange(val ?? '')}>
-                      <ComboboxInput placeholder="Ej: B58 Gen 1" showClear />
+                    <ComboboxCreatable items={uniqueVariantes} value={field.value || null} onValueChange={(val) => field.onChange(val ?? '')}>
+                      <ComboboxCreatableInput placeholder="Ej: B58 Gen 1" showClear />
                       <ComboboxContent>
                         <ComboboxEmpty>Nueva variante</ComboboxEmpty>
                         <ComboboxList>
                           {(v) => <ComboboxItem key={v} value={v}>{v}</ComboboxItem>}
                         </ComboboxList>
                       </ComboboxContent>
-                    </Combobox>
+                    </ComboboxCreatable>
                   )}
                 />
               </Field>
